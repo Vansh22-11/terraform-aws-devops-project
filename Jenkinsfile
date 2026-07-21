@@ -114,10 +114,6 @@ pipeline {
 
         stage('Terraform Validate') {
 
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
-            }
-
             steps {
 
                 echo "========== TERRAFORM VALIDATE =========="
@@ -131,10 +127,6 @@ pipeline {
         }
 
         stage('Terraform Plan') {
-
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
-            }
 
             steps {
 
@@ -150,10 +142,6 @@ pipeline {
 
         stage('Terraform Apply') {
 
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
-            }
-
             steps {
 
                 echo "========== TERRAFORM APPLY =========="
@@ -168,10 +156,6 @@ pipeline {
 
         stage('Terraform Outputs') {
 
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
-            }
-
             steps {
 
                 echo "========== TERRAFORM OUTPUT =========="
@@ -185,10 +169,6 @@ pipeline {
         }
 
         stage('Architecture Summary') {
-
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
-            }
 
             steps {
 
@@ -256,10 +236,6 @@ pipeline {
 
         stage('Upload Project To S3') {
 
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
-            }
-
             steps {
 
                 echo "========== UPLOADING PROJECT TO S3 =========="
@@ -293,14 +269,15 @@ pipeline {
                     if (params.DEPLOYMENT_MODE == 'Destroy and Rebuild') {
 
                         echo "Infrastructure Destroyed Successfully"
-                        echo "New Infrastructure Created Successfully"
+                        echo "Infrastructure Recreated Successfully"
 
                     } else {
 
                         echo "Infrastructure Updated Successfully"
 
                     }
-
+                       echo "Project Uploaded To S3 Successfully"
+ 
                     }
 
                 echo "Dynamic Agent Will Be Automatically Terminated By Jenkins EC2 Plugin"
