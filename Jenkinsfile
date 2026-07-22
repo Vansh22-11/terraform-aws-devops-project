@@ -335,12 +335,19 @@ pipeline {
                 sh '''
                 cd ansible
 
+                pwd
+                ls -la
+                ls -R
+
+                export ANSIBLE_CONFIG=$PWD/ansible.cfg
+
+                ansible-config dump | grep ROLE
+
                 ansible-playbook -i inventory/hosts playbooks/site.yml
                 '''
-
             }
         }
-
+        
         stage('Verify Java & Docker') {
 
             when {
