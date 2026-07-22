@@ -289,7 +289,7 @@ pipeline {
                 sh """
                 cat > ansible/inventory/hosts <<EOF
                 [terraform_servers]
-                ${env.EC2_PUBLIC_IP} ansible_user=ubuntu ansible_ssh_private_key_file=/home/ubuntu/dynamic-agent-key-pair.pem
+                ${env.EC2_PUBLIC_IP} ansible_user=ubuntu
                 EOF
                 """
 
@@ -332,22 +332,20 @@ pipeline {
 
                 echo "========== RUNNING ANSIBLE =========="
 
+                sshagent(credentials: ['agent-key']) {
+
                 sh '''
                 cd ansible
 
-                pwd
-                ls -la
-                ls -R
-
                 export ANSIBLE_CONFIG=$PWD/ansible.cfg
 
-                ansible-config dump | grep ROLE
-
                 ansible-playbook -i inventory/hosts playbooks/site.yml
+            
                 '''
             }
+            }
         }
-        
+
         stage('Verify Java & Docker') {
 
             when {
