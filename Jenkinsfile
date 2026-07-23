@@ -409,13 +409,17 @@ pipeline {
                 sh '''
                 cd ansible
 
+                echo "===== JAVA VERSION ====="
                 ansible -i inventory/hosts terraform_servers -m shell -a "java -version"
-                
+
+                echo "===== DOCKER VERSION ====="
                 ansible -i inventory/hosts terraform_servers -m shell -a "docker --version"
 
-                ansible -i inventory/hosts terraform_servers -m shell -a "docker ps"
-                
-                ansible -i inventory/hosts terraform_servers -m shell -a "systemctl is-active docker"                
+                echo "===== DOCKER STATUS ====="
+                ansible -i inventory/hosts terraform_servers -b -m shell -a "docker ps"
+
+                echo "===== DOCKER SERVICE ====="
+                ansible -i inventory/hosts terraform_servers -b -m shell -a "systemctl is-active docker"
                 '''
 
             }
