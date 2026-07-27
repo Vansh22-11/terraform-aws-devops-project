@@ -94,23 +94,6 @@ pipeline {
 
         }
 
-        stage('Terraform Destroy') {
-
-            when {
-                expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
-            }
-
-            steps {
-
-                echo "========== TERRAFORM DESTROY =========="
-
-                sh '''
-                terraform destroy -auto-approve
-                '''
-
-            }
-
-        }
 
         stage('Terraform Validate') {
 
@@ -140,15 +123,48 @@ pipeline {
 
         }
 
+        stage('Terraform Destroy') {
+
+            when {
+                expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+            }
+
+            steps {
+
+                echo "========== TERRAFORM DESTROY =========="
+
+                sh '''
+                terraform destroy -auto-approve
+                '''
+
+            }
+
+        }
+
+
         stage('Terraform Apply') {
 
             steps {
 
                 echo "========== TERRAFORM APPLY =========="
 
+                script {
+
+                if (params.DEPLOYMENT_MODE == 'Update Infrastructure') {
+
                 sh '''
                 terraform apply -auto-approve tfplan
                 '''
+
+                } else {
+
+                sh '''
+                terraform apply -auto-approve
+                '''
+
+                }
+
+            }
 
             }
 
