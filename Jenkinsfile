@@ -183,11 +183,23 @@ pipeline {
 
             steps {
 
-                echo "========== TERRAFORM PLAN =========="
+                script {
 
-                sh '''
-                terraform plan -out=tfplan
-                '''
+                    if (params.DEPLOYMENT_MODE == 'Update Infrastructure') {
+
+                    sh '''
+                    terraform plan -out=tfplan
+                    '''
+
+                } else {
+
+                    sh '''
+                    terraform plan -destroy -out=destroy.tfplan
+                    '''
+
+                }
+
+                }
 
             }
 
@@ -196,15 +208,15 @@ pipeline {
         stage('Terraform Destroy') {
 
             when {
-                expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+                expression {
+                params.DEPLOYMENT_MODE == 'Destroy and Rebuild'
+                }
             }
 
             steps {
 
-                echo "========== TERRAFORM DESTROY =========="
-
                 sh '''
-                terraform destroy -auto-approve
+                terraform apply -auto-approve destroy.tfplan
                 '''
 
             }
