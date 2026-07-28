@@ -45,6 +45,7 @@ module "ec2" {
 
   instance_profile_name = module.iam.instance_profile_name
 
+  associate_public_ip = var.associate_public_ip
 }
 
 module "ecr" {

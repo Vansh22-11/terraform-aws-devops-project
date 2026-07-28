@@ -1,14 +1,14 @@
 resource "aws_instance" "ubuntu" {
 
-  ami                    = var.ami_id
+  ami = var.ami_id
 
-  instance_type          = var.instance_type
+  instance_type = var.instance_type
 
-  subnet_id              = var.public_subnet_id
+  subnet_id = var.public_subnet_id
 
-  associate_public_ip_address = true
+  associate_public_ip_address = var.associate_public_ip
 
-  key_name               = var.key_name
+  key_name = var.key_name
 
   vpc_security_group_ids = [
     var.security_group_id
@@ -29,11 +29,24 @@ resource "aws_instance" "ubuntu" {
   }
 
   root_block_device {
-    volume_size           = 23
-    volume_type           = "gp3"
+
+    volume_size = 23
+
+    volume_type = "gp3"
+
     delete_on_termination = true
-    encrypted             = true
-}
+
+    encrypted = true
+
+  }
+
+  lifecycle {
+
+    ignore_changes = [
+      associate_public_ip_address
+    ]
+
+  }
 
   tags = {
 

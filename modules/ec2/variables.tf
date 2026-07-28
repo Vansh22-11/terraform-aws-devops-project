@@ -39,3 +39,9 @@ variable "instance_profile_name" {
   type = string
 
 }
+
+variable "associate_public_ip" {
+  description = "Associate Public IP with EC2"
+  type        = bool
+  default     = true
+}

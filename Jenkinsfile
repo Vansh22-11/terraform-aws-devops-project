@@ -94,6 +94,76 @@ pipeline {
 
         }
 
+        stage('Check EC2 State') {
+
+            when {
+                expression {
+                params.DEPLOYMENT_MODE == 'Update Infrastructure'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    env.INSTANCE_ID = sh(
+                    script: "terraform output -raw ec2_instance_id",
+                    returnStdout: true
+                    ).trim()
+
+                    env.INSTANCE_STATE = sh(
+                    script: """
+                    aws ec2 describe-instances \
+                    --instance-ids ${env.INSTANCE_ID} \
+                    --query "Reservations[0].Instances[0].State.Name" \
+                    --output text
+                    """,
+                    returnStdout: true
+                    ).trim()
+
+                    echo "EC2 State = ${env.INSTANCE_STATE}"
+                }
+            }
+        }
+
+        stage('Restart EC2') {
+
+            when {
+                expression {
+                params.DEPLOYMENT_MODE == 'Update Infrastructure'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    if (env.INSTANCE_STATE == "stopped") {
+
+                    sh """
+                    aws ec2 start-instances --instance-ids ${env.INSTANCE_ID}
+
+                    aws ec2 wait instance-running \
+                    --instance-ids ${env.INSTANCE_ID}
+
+                    aws ec2 wait instance-status-ok \
+                    --instance-ids ${env.INSTANCE_ID}
+                    """
+
+                    echo "EC2 restarted."
+
+                    } else {
+
+                    echo "EC2 already running."
+
+                }
+
+                }
+
+            }
+
+        }
+
 
         stage('Terraform Validate') {
 
@@ -170,45 +240,6 @@ pipeline {
 
         }
 
-        stage('Start EC2 Instance') {
-
-            when {
-                expression {
-                params.DEPLOYMENT_MODE == 'Update Infrastructure'
-                }
-            }
-
-            steps {
-
-                echo "========== START EC2 =========="
-
-                sh '''
-                INSTANCE_ID=$(terraform output -raw ec2_instance_id)
-
-                echo "Starting EC2 : $INSTANCE_ID"
-
-                aws ec2 start-instances \
-                --instance-ids $INSTANCE_ID
-
-                echo "Waiting for EC2..."
-
-                aws ec2 wait instance-running \
-                --instance-ids $INSTANCE_ID
-
-                echo "Waiting for Status Checks..."
-
-                aws ec2 wait instance-status-ok \
-                --instance-ids $INSTANCE_ID
-
-                echo "EC2 Started Successfully"
-
-                aws ec2 describe-instances \
-                --instance-ids $INSTANCE_ID \
-                --query "Reservations[0].Instances[0].PublicIpAddress" \
-                --output text
-                '''
-            }
-        }
 
         stage('Terraform Outputs') {
 
