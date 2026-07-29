@@ -193,6 +193,8 @@ pipeline {
 
                 } else {
 
+                    echo "========== TERRAFORM PLAN =========="
+                    
                     sh '''
                     terraform plan -destroy -out=destroy.tfplan
                     '''
@@ -214,6 +216,8 @@ pipeline {
             }
 
             steps {
+
+                echo "========== TERRAFORM DESTROY =========="
 
                 sh '''
                 terraform apply -auto-approve destroy.tfplan
@@ -484,7 +488,37 @@ pipeline {
             }
         }
 
-        
+        stage('Deploy Docker Application') {
+
+            when {
+                anyOf {
+                    expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
+                    expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+                }
+            }
+
+            steps {
+
+                echo "========== DEPLOY APPLICATION =========="
+
+                sshagent(credentials: ['agent-key']) {
+
+                sh '''
+                cd ansible
+
+                export ANSIBLE_CONFIG=$PWD/ansible.cfg
+
+                ansible-playbook \
+                -i inventory/hosts \
+                playbooks/deploy-app.yml
+                '''
+
+                }
+
+            }
+
+        }
+
         stage('Upload Project To S3') {
 
             steps {
