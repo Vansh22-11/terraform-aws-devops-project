@@ -22,12 +22,10 @@
         docker pull {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ ecr_repository }}:{{ image_tag }}
 
     - name: Stop old container
-      shell: docker stop tasksphere-container
-      ignore_errors: yes
+      shell: docker stop tasksphere-container || true
 
     - name: Remove old container
-      shell: docker rm tasksphere-container
-      ignore_errors: yes
+      shell: docker rm -f tasksphere-container || true
 
     - name: Run latest container
       shell: |
