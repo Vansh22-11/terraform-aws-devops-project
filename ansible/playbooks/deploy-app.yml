@@ -34,7 +34,7 @@
         docker run -d \
           --name tasksphere-container \
           --restart unless-stopped \
-          -p 8080:8080 \
+          -p 80:80 \
           {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ ecr_repository }}:{{ image_tag }}
 
     - name: Show running container
