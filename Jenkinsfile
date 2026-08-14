@@ -478,7 +478,7 @@ pipeline {
 
             when {
                 anyOf {
-                expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
+                expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
                 expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
                 }
             }
@@ -519,7 +519,7 @@ pipeline {
 
             when {
                 anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
+                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
                     expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
                 }
             }
@@ -538,7 +538,7 @@ pipeline {
 
             when {
                 anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
+                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
                     expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
                 }
             }
@@ -597,7 +597,7 @@ pipeline {
 
             when {
                 anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
+                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
                     expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
                 }
             }
@@ -631,7 +631,7 @@ pipeline {
                 echo "========== UPLOADING PROJECT TO S3 =========="
 
                 sh '''
-                aws s3 cp . s3://jenkins-backup-vansh-2026/terraform-project/ \
+                aws s3 cp . s3://jenkins-backup-vansh-devops-2026/terraform-project/ \
                 --recursive \
                 --exclude ".git/*" \
                 --exclude ".terraform/*"
@@ -663,7 +663,7 @@ pipeline {
 
                     } else {
 
-                        echo "Infrastructure Updated Successfully"
+                        echo "Infrastructure Created / Updated Successfully"
 
                     }
                        echo "Project Uploaded To S3 Successfully"
