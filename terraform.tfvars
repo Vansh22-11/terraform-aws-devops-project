@@ -12,7 +12,7 @@ public_subnet_cidr = "10.0.1.0/24"
 
 private_subnet_cidr = "10.0.2.0/24"
 
-ami_id = "ami-0ca988064d5549965"
+ami_id = "ami-09b421450f175d4e4"
 
 instance_type = "m7i-flex.large"
 
