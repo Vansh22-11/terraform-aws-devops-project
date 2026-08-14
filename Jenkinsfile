@@ -9,7 +9,7 @@ pipeline {
     choice(
         name: 'DEPLOYMENT_MODE',
         choices: [
-            'Update Infrastructure',
+            'Create / Update Infrastructure',
             'Destroy and Rebuild'
         ],
         description: 'Choose Terraform Deployment Mode'
@@ -22,7 +22,15 @@ pipeline {
         AWS_DEFAULT_REGION = 'eu-north-1'
         TF_IN_AUTOMATION   = 'true'
         ANSIBLE_DIR = "ansible"
-    }
+    
+        STATE_EXISTS       = 'false'
+        INSTANCE_ID        = ''
+        INSTANCE_STATE     = ''
+
+    
+    
+    }   
+
 
     options {
 
@@ -94,11 +102,68 @@ pipeline {
 
         }
 
-        stage('Check EC2 State') {
+        stage('Detect Terraform State') {
+
+            steps {
+
+                script {
+
+                    def stateResources = sh(
+                    script: '''
+                    terraform state list 2>/dev/null || true
+                    ''',
+                    returnStdout: true
+                    ).trim()
+
+                    if (stateResources) {
+
+                    env.STATE_EXISTS = 'true'
+
+                    echo """
+                    ==================================================
+                    TERRAFORM STATE DETECTION
+                    ==================================================
+                    State found.
+                    Terraform is already managing infrastructure.
+
+                    Resources:
+                    ${stateResources}
+                    ==================================================
+                    """
+
+                    } else {
+
+                    env.STATE_EXISTS = 'false'
+
+                    echo """
+                    ==================================================
+                    TERRAFORM STATE DETECTION
+                    ==================================================
+                    No Terraform resources found in state.
+
+                    This is a FIRST DEPLOYMENT.
+
+                    Terraform will create the infrastructure.
+                    ==================================================
+                """
+                }
+                }
+            }
+        }
+
+        stage('Check Existing EC2 State') {
 
             when {
+                allOf {
+
                 expression {
-                params.DEPLOYMENT_MODE == 'Update Infrastructure'
+                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                }
+
+                expression {
+                env.STATE_EXISTS == 'true'
+                }
+
                 }
             }
 
@@ -106,64 +171,93 @@ pipeline {
 
                 script {
 
+                    def ec2ExistsInState = sh(
+                    script: '''
+                    terraform state list 2>/dev/null |
+                    grep -q '^module.ec2.aws_instance.ubuntu$'
+                    ''',
+                    returnStatus: true
+                    )
+
+                    if (ec2ExistsInState == 0) {
+
                     env.INSTANCE_ID = sh(
-                    script: "terraform output -raw ec2_instance_id",
+                    script: '''
+                        terraform state show module.ec2.aws_instance.ubuntu |
+                        awk -F' = ' '$1 ~ /^[[:space:]]*id$/ {print $2; exit}'
+                    ''',
                     returnStdout: true
                     ).trim()
 
+                    echo "Terraform EC2 Resource = ${env.INSTANCE_ID}"
+
                     env.INSTANCE_STATE = sh(
                     script: """
-                    aws ec2 describe-instances \
-                    --instance-ids ${env.INSTANCE_ID} \
-                    --query "Reservations[0].Instances[0].State.Name" \
-                    --output text
+                        aws ec2 describe-instances \
+                        --instance-ids ${env.INSTANCE_ID} \
+                        --query "Reservations[0].Instances[0].State.Name" \
+                        --output text
                     """,
                     returnStdout: true
                     ).trim()
 
                     echo "EC2 State = ${env.INSTANCE_STATE}"
+
+                    } else {
+
+                        echo "EC2 resource is not currently present in Terraform state."
+                        echo "Terraform will determine whether it needs to create it."
+
+                        env.INSTANCE_ID = ''
+                        env.INSTANCE_STATE = ''
+                    }
                 }
             }
         }
 
-        stage('Restart EC2') {
+        stage('Start EC2 If Required') {
 
             when {
+                allOf {
+
                 expression {
-                params.DEPLOYMENT_MODE == 'Update Infrastructure'
+                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                }
+
+                expression {
+                env.STATE_EXISTS == 'true'
+                }
+
+                expression {
+                env.INSTANCE_ID?.trim()
+                }
+
+                expression {
+                env.INSTANCE_STATE == 'stopped'
+                }
+
                 }
             }
 
             steps {
 
-                script {
+                sh """
+                echo "EC2 is stopped."
+                echo "Starting ${env.INSTANCE_ID}..."
 
-                    if (env.INSTANCE_STATE == "stopped") {
+                aws ec2 start-instances \
+                --instance-ids ${env.INSTANCE_ID}
 
-                    sh """
-                    aws ec2 start-instances --instance-ids ${env.INSTANCE_ID}
+                aws ec2 wait instance-running \
+                --instance-ids ${env.INSTANCE_ID}
 
-                    aws ec2 wait instance-running \
-                    --instance-ids ${env.INSTANCE_ID}
+                aws ec2 wait instance-status-ok \
+                --instance-ids ${env.INSTANCE_ID}
 
-                    aws ec2 wait instance-status-ok \
-                    --instance-ids ${env.INSTANCE_ID}
-                    """
-
-                    echo "EC2 restarted."
-
-                    } else {
-
-                    echo "EC2 already running."
-
-                }
-
-                }
-
+                echo "EC2 is running and healthy."
+                """
             }
-
         }
-
 
         stage('Terraform Validate') {
 
@@ -185,33 +279,43 @@ pipeline {
 
                 script {
 
-                    if (params.DEPLOYMENT_MODE == 'Update Infrastructure') {
+                    if (params.DEPLOYMENT_MODE == 'Create / Update Infrastructure') {
+
+                    echo "========== TERRAFORM PLAN =========="
 
                     sh '''
                     terraform plan -out=tfplan
                     '''
 
-                } else {
+                    } else {
 
-                    echo "========== TERRAFORM PLAN =========="
-                    
-                    sh '''
-                    terraform plan -destroy -out=destroy.tfplan
+                        echo "========== TERRAFORM DESTROY PLAN =========="
+
+                        sh '''
+                        terraform plan -destroy -out=destroy.tfplan
                     '''
-
+                    }
                 }
-
-                }
-
+            
             }
-
+        
         }
+
 
         stage('Terraform Destroy') {
 
             when {
+
+                allOf {
+
                 expression {
                 params.DEPLOYMENT_MODE == 'Destroy and Rebuild'
+                }
+
+                expression {
+                env.STATE_EXISTS == 'true'
+                }
+
                 }
             }
 
@@ -220,13 +324,12 @@ pipeline {
                 echo "========== TERRAFORM DESTROY =========="
 
                 sh '''
-                terraform apply -auto-approve destroy.tfplan
+                terraform apply \
+                -auto-approve \
+                destroy.tfplan
                 '''
-
             }
-
         }
-
 
         stage('Terraform Apply') {
 
@@ -236,25 +339,27 @@ pipeline {
 
                 script {
 
-                if (params.DEPLOYMENT_MODE == 'Update Infrastructure') {
+                    if (params.DEPLOYMENT_MODE == 'Create / Update Infrastructure') {
 
-                sh '''
-                terraform apply -auto-approve tfplan
-                '''
+                        sh '''
+                        terraform apply \
+                        -auto-approve \
+                        tfplan
+                        '''
 
-                } else {
+                        } else {
 
-                sh '''
-                terraform apply -auto-approve
-                '''
-
+                        sh '''
+                        terraform apply \
+                        -auto-approve
+                        '''
+                        }
+                    }
+           
                 }
-
-            }
-
-            }
-
+        
         }
+        
 
 
         stage('Terraform Outputs') {
