@@ -16,4 +16,4 @@ ami_id = "ami-09b421450f175d4e4"
 
 instance_type = "m7i-flex.large"
 
-key_name = "dynamic-agent-key-pair"
+key_name = "Agent-keypair"
