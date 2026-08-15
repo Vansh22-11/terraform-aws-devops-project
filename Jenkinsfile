@@ -542,7 +542,7 @@ pipeline {
                 
                 echo "========== RUNNING ANSIBLE =========="
 
-                sshagent(['ubuntu']) {
+                sshagent(['agent-key']) {
                 sh """
                 echo "Waiting for SSH on ${env.EC2_PUBLIC_IP}..."
 
