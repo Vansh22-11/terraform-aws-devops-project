@@ -587,11 +587,11 @@ pipeline {
 
             when {
                 anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Update Infrastructure' }
+                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
                     expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
                 }
             }
-
+            
             steps {
 
                 echo "========== VERIFYING SOFTWARE =========="
