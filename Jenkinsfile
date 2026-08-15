@@ -152,113 +152,84 @@ pipeline {
         }
 
         stage('Check Existing EC2 State') {
-
+           
             when {
-                allOf {
-
+             
                 expression {
-                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                    params.DEPLOYMENT_MODE == 'CREATE_UPDATE'
+                    }
                 }
-
-                expression {
-                env.STATE_EXISTS == 'true'
-                }
-
-                }
-            }
 
             steps {
-
+              
                 script {
-
-                    def ec2ExistsInState = sh(
-                    script: '''
-                    terraform state list 2>/dev/null |
-                    grep -q '^module.ec2.aws_instance.ubuntu$'
-                    ''',
-                    returnStatus: true
-                    )
-
-                    if (ec2ExistsInState == 0) {
-
-                    env.INSTANCE_ID = sh(
-                    script: '''
-                        terraform state show module.ec2.aws_instance.ubuntu |
-                        awk -F' = ' '$1 ~ /^[[:space:]]*id$/ {print $2; exit}'
-                    ''',
+                    def instanceId = sh(
+                    script: "terraform output -raw ec2_instance_id",
                     returnStdout: true
                     ).trim()
 
-                    echo "Terraform EC2 Resource = ${env.INSTANCE_ID}"
-
-                    env.INSTANCE_STATE = sh(
+                    def ec2State = sh(
                     script: """
-                        aws ec2 describe-instances \
-                        --instance-ids ${env.INSTANCE_ID} \
-                        --query "Reservations[0].Instances[0].State.Name" \
-                        --output text
+                    aws ec2 describe-instances \
+                    --instance-ids ${instanceId} \
+                    --query 'Reservations[0].Instances[0].State.Name' \
+                    --output text
                     """,
                     returnStdout: true
                     ).trim()
 
-                    echo "EC2 State = ${env.INSTANCE_STATE}"
+                    echo """
+                    ==========================================
+                    EC2 STATE CHECK
+                    ==========================================
+                    Instance ID : ${instanceId}
+                    EC2 State   : ${ec2State}
+                    ==========================================
+                    """
 
-                    } else {
-
-                        echo "EC2 resource is not currently present in Terraform state."
-                        echo "Terraform will determine whether it needs to create it."
-
-                        env.INSTANCE_ID = ''
-                        env.INSTANCE_STATE = ''
-                    }
+                    env.EC2_INSTANCE_ID = instanceId
+                    env.EC2_STATE = ec2State
                 }
             }
         }
 
         stage('Start EC2 If Required') {
-
+          
             when {
                 allOf {
-
-                expression {
-                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                    expression {
+                    params.DEPLOYMENT_MODE == 'CREATE_UPDATE'
+                    }
+                    expression {
+                    env.EC2_STATE == 'stopped'
                 }
-
-                expression {
-                env.STATE_EXISTS == 'true'
-                }
-
-                expression {
-                env.INSTANCE_ID?.trim()
-                }
-
-                expression {
-                env.INSTANCE_STATE == 'stopped'
-                }
-
+               
                 }
             }
 
             steps {
+                script {
+                    echo "EC2 is stopped. Starting EC2..."
 
-                sh """
-                echo "EC2 is stopped."
-                echo "Starting ${env.INSTANCE_ID}..."
+                    sh """
+                    aws ec2 start-instances \
+                    --instance-ids ${env.EC2_INSTANCE_ID}
+                    """
 
-                aws ec2 start-instances \
-                --instance-ids ${env.INSTANCE_ID}
+                    echo "Waiting for EC2 to reach running state..."
 
-                aws ec2 wait instance-running \
-                --instance-ids ${env.INSTANCE_ID}
+                    sh """
+                    aws ec2 wait instance-running \
+                    --instance-ids ${env.EC2_INSTANCE_ID}
+                    """
 
-                aws ec2 wait instance-status-ok \
-                --instance-ids ${env.INSTANCE_ID}
+                    echo "EC2 is now running."
 
-                echo "EC2 is running and healthy."
-                """
+                    sleep(time: 10, unit: 'SECONDS')
+                }
             }
-        }
-
+        }   
+        
         stage('Terraform Validate') {
 
             steps {
@@ -475,45 +446,76 @@ pipeline {
         }
 
         stage('Generate Ansible Inventory') {
-
+            
             when {
-                anyOf {
-                expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
-                expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+                expression {
+                params.DEPLOYMENT_MODE == 'CREATE_UPDATE'
                 }
             }
 
+            
             steps {
-
-                echo "========== GENERATE ANSIBLE INVENTORY =========="
-
+                
                 script {
-                    sh '''
-                    echo "========== DEBUG =========="
-                    pwd
-                    ls -la
-                    terraform output
-                    '''
 
-                    env.EC2_PUBLIC_IP = sh(
-                    script: "terraform output -raw ec2_public_ip",
+                    def instanceId = sh(
+                    script: "terraform output -raw ec2_instance_id",
                     returnStdout: true
                     ).trim()
-                    echo "EC2 PUBLIC IP = '${env.EC2_PUBLIC_IP}'"
 
-                    writeFile file: 'ansible/inventory/hosts', text: """[terraform_servers]
-                    ${env.EC2_PUBLIC_IP} ansible_user=ubuntu
-                    """
+                    echo "EC2 Instance ID = ${instanceId}"
 
-                        echo "Inventory Created Successfully"
+                    def instanceState = sh(
+                    script: """
+                    aws ec2 describe-instances \
+                    --instance-ids ${instanceId} \
+                    --query 'Reservations[0].Instances[0].State.Name' \
+                    --output text
+                    """,
+                    returnStdout: true
+                    ).trim()
 
-                    sh '''
-                    cat ansible/inventory/hosts
-                    '''
+                    echo "EC2 State = ${instanceState}"
+
+                    if (instanceState != "running") {
+                    error("EC2 is not running. Current state: ${instanceState}")
                 }
+
+                def publicIp = sh(
+                script: """
+                    aws ec2 describe-instances \
+                    --instance-ids ${instanceId} \
+                    --query 'Reservations[0].Instances[0].PublicIpAddress' \
+                    --output text
+                    """,
+                returnStdout: true
+                ).trim()
+
+                echo "EC2 PUBLIC IP = ${publicIp}"
+
+                if (!publicIp || publicIp == "None") {
+                error("EC2 is running but does not have a public IP.")
+                }
+
+                 env.EC2_PUBLIC_IP = publicIp
+
+                sh """
+                mkdir -p ansible/inventory
+
+                cat > ansible/inventory/hosts <<EOF
+                [terraform_servers]
+                ${publicIp} ansible_user=ubuntu
+                EOF
+                """
+
+                echo "Inventory Created Successfully"
+
+                sh "cat ansible/inventory/hosts"
+            }
             }
 
         }
+    
 
         stage('Display Inventory') {
 
@@ -535,29 +537,49 @@ pipeline {
         }
 
         stage('Run Ansible Playbook') {
-
-            when {
-                anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
-                    expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
-                }
-            }
-
+          
             steps {
+                
+                echo "========== RUNNING ANSIBLE =========="
+
+                sshagent(['ubuntu']) {
+                sh """
+                echo "Waiting for SSH on ${env.EC2_PUBLIC_IP}..."
+
+                for i in {1..30}; do
+                    if ssh -o StrictHostKeyChecking=no \
+                           -o ConnectTimeout=5 \
+                           ubuntu@${env.EC2_PUBLIC_IP} "echo SSH READY" 2>/dev/null
+                    then
+                        echo "SSH is ready."
+                        break
+                    fi
+
+                    echo "SSH not ready yet. Waiting..."
+                    sleep 10
+                done
+
+                echo "Updating Ansible inventory..."
+
+                cat > ansible/inventory/hosts <<EOF
+                [terraform_servers]
+                ${env.EC2_PUBLIC_IP} ansible_user=ubuntu
+                EOF
+
+                echo "========== INVENTORY =========="
+                cat ansible/inventory/hosts
+
+                cd ansible
+
+                export ANSIBLE_CONFIG=\$(pwd)/ansible.cfg
 
                 echo "========== RUNNING ANSIBLE =========="
 
-                sshagent(credentials: ['agent-key']) {
-
-                sh '''
-                cd ansible
-
-                export ANSIBLE_CONFIG=$PWD/ansible.cfg
-
-                ansible-playbook -i inventory/hosts playbooks/site.yml
-            
-                '''
-            }
+                ansible-playbook \
+                    -i inventory/hosts \
+                    playbooks/site.yml
+                """
+                }
             }
         }
 
