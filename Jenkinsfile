@@ -258,15 +258,18 @@ pipeline {
 
             when {
                 expression {
-                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
+        
 
             steps {
 
                 script {
 
                     sh '''
+                    set -e
+
                     echo "=========================================="
                     echo "CHECKING EC2 INSTANCE"
                     echo "=========================================="
@@ -295,11 +298,11 @@ pipeline {
                     aws ec2 wait instance-running \
                         --instance-ids "$INSTANCE_ID"
 
-                    echo "EC2 is now running."
+                     echo "EC2 is now running."
 
-                    sleep 10
 
-                    elif [ "$INSTANCE_STATE" = "running" ]; then
+
+                   elif [ "$INSTANCE_STATE" = "running" ]; then
 
                     echo "EC2 is already running."
 
@@ -312,7 +315,7 @@ pipeline {
 
 
                     echo "=========================================="
-                    echo "GETTING CURRENT PUBLIC IP"
+                    echo "WAITING FOR PUBLIC IP"
                     echo "=========================================="
 
                     EC2_PUBLIC_IP=""
@@ -346,46 +349,39 @@ pipeline {
 
 
                     echo "=========================================="
-                    echo "SAVING CURRENT PUBLIC IP"
+                    echo "SAVING CURRENT EC2 IP"
                     echo "=========================================="
 
-                    # Make the IP available to later Jenkins stages
+
                     echo "$EC2_PUBLIC_IP" > ec2_public_ip.txt
 
-                    echo "Saved EC2 IP:"
+                    echo "Saved IP:"
                     cat ec2_public_ip.txt
 
 
                     echo "=========================================="
-                    echo "CREATING ANSIBLE INVENTORY"
+                    echo "CREATING CLEAN ANSIBLE INVENTORY"
                     echo "=========================================="
 
                     mkdir -p ansible/inventory
 
-                    printf '%s\n' \
-                      '[terraform_servers]' \
-                      "$EC2_PUBLIC_IP ansible_user=ubuntu" \
-                      > ansible/inventory/hosts
+                    rm -f ansible/inventory/hosts
 
-                    echo "Generated inventory:"
-                    cat ansible/inventory/hosts
+                    printf '%s\\n' '[terraform_servers]' > ansible/inventory/hosts
+                    printf '%s ansible_user=ubuntu\\n' "$EC2_PUBLIC_IP" >> ansible/inventory/hosts
 
 
-                    echo "=========================================="
-                    echo "GENERATED INVENTORY"
-                    echo "=========================================="
+                    echo "========== GENERATED INVENTORY =========="
 
-                    cat -A ansible/inventory/hosts
+                    cat -n ansible/inventory/hosts
 
-                    echo "=========================================="
-                    echo "VERIFYING INVENTORY"
-                    echo "=========================================="
 
-                    cd ansible
+
+                    echo "========== ANSIBLE INVENTORY CHECK =========="
 
                     ansible-inventory \
-                    -i inventory/hosts \
-                    --list
+                    -i ansible/inventory/hosts \
+                    --graph
 
                     echo "=========================================="
                     echo "INVENTORY CREATED SUCCESSFULLY"
@@ -393,7 +389,7 @@ pipeline {
                     '''
                 }
                 }
-        }               
+        }
 
         stage('Terraform Outputs') {
 
@@ -508,96 +504,32 @@ pipeline {
             }
         }
 
-        stage('Generate Ansible Inventory') {
-            
-            when {
-                expression {
-                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
-                }
-            }
-
-            
-            steps {
-                
-                script {
-
-                    def instanceId = sh(
-                    script: "terraform output -raw ec2_instance_id",
-                    returnStdout: true
-                    ).trim()
-
-                    echo "EC2 Instance ID = ${instanceId}"
-
-                    def instanceState = sh(
-                    script: """
-                    aws ec2 describe-instances \
-                    --instance-ids ${instanceId} \
-                    --query 'Reservations[0].Instances[0].State.Name' \
-                    --output text
-                    """,
-                    returnStdout: true
-                    ).trim()
-
-                    echo "EC2 State = ${instanceState}"
-
-                    if (instanceState != "running") {
-                    error("EC2 is not running. Current state: ${instanceState}")
-                }
-
-                def publicIp = sh(
-                script: """
-                    aws ec2 describe-instances \
-                    --instance-ids ${instanceId} \
-                    --query 'Reservations[0].Instances[0].PublicIpAddress' \
-                    --output text
-                    """,
-                returnStdout: true
-                ).trim()
-
-                echo "EC2 PUBLIC IP = ${publicIp}"
-
-                if (!publicIp || publicIp == "None") {
-                error("EC2 is running but does not have a public IP.")
-                }
-
-                 env.EC2_PUBLIC_IP = publicIp
-
-                sh """
-                mkdir -p ansible/inventory
-
-                cat > ansible/inventory/hosts <<EOF
-                [terraform_servers]
-                ${publicIp} ansible_user=ubuntu
-                EOF
-                """
-
-                echo "Inventory Created Successfully"
-
-                sh "cat ansible/inventory/hosts"
-            }
-            }
-
-        }
-    
 
         stage('Display Inventory') {
 
             when {
-                anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
-                    expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+                expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
-
+        
             steps {
 
-                echo "========== INVENTORY =========="
+                echo "========== CURRENT ANSIBLE INVENTORY =========="
 
                 sh '''
-                cat ansible/inventory/hosts
+                echo "Inventory file:"
+                cat -n ansible/inventory/hosts
+
+                echo ""
+                echo "Ansible inventory graph:"
+                ansible-inventory \
+                -i ansible/inventory/hosts \
+                --graph
                 '''
             }
         }
+
 
         stage('Run Ansible Playbook') {
 
@@ -605,90 +537,74 @@ pipeline {
                 expression {
                     params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
-            }
-            
 
+
+        }
 
             steps {
 
                 echo "========== RUNNING ANSIBLE =========="
 
-                sshagent(['agent-key']) {
+                    sshagent(credentials: ['agent-key']) {
 
-                sh '''
-                INSTANCE_ID=$(terraform output -raw ec2_instance_id)
+                    sh '''
+                    set -e
 
-                echo "EC2 Instance ID = $INSTANCE_ID"
+                    echo "========== CURRENT EC2 IP =========="
 
-                INSTANCE_STATE=$(aws ec2 describe-instances \
-                    --instance-ids "$INSTANCE_ID" \
-                    --query 'Reservations[0].Instances[0].State.Name' \
-                    --output text)
+                    EC2_PUBLIC_IP=$(cat ec2_public_ip.txt)
 
-                echo "EC2 State = $INSTANCE_STATE"
+                    echo "EC2 PUBLIC IP = $EC2_PUBLIC_IP"
 
-                if [ "$INSTANCE_STATE" != "running" ]; then
-                    echo "ERROR: EC2 is not running."
-                    exit 1
-                fi
 
-                echo "Getting current EC2 public IP..."
 
-                EC2_PUBLIC_IP=$(aws ec2 describe-instances \
-                    --instance-ids "$INSTANCE_ID" \
-                    --query 'Reservations[0].Instances[0].PublicIpAddress' \
-                    --output text)
+                    echo "========== WAITING FOR SSH =========="
 
-                echo "EC2 PUBLIC IP = $EC2_PUBLIC_IP"
+                    SSH_READY=false
 
-                if [ -z "$EC2_PUBLIC_IP" ] || [ "$EC2_PUBLIC_IP" = "None" ]; then
-                    echo "ERROR: EC2 does not have a public IP."
-                    exit 1
-                fi
-
-                echo "Updating Ansible inventory..."
-
-                mkdir -p ansible/inventory
-
-                cat > ansible/inventory/hosts <<EOF
-                [terraform_servers]
-                $EC2_PUBLIC_IP ansible_user=ubuntu
-                EOF
-
-                echo "========== INVENTORY =========="
-                cat ansible/inventory/hosts
-
-                echo "========== WAITING FOR SSH =========="
-
-                SSH_READY=false
-
-                for i in $(seq 1 30); do
+                    for i in $(seq 1 30); do
 
                     if ssh \
                         -o StrictHostKeyChecking=no \
                         -o ConnectTimeout=5 \
-                        ubuntu@$EC2_PUBLIC_IP "echo SSH READY" 2>/dev/null
+                        ubuntu@$EC2_PUBLIC_IP \
+                        "echo SSH READY" 2>/dev/null
                     then
+
                         echo "SSH is ready."
                         SSH_READY=true
                         break
+
                     fi
 
                     echo "SSH not ready yet. Attempt $i/30"
+
                     sleep 10
 
-                done
+                    done
 
-                if [ "$SSH_READY" != "true" ]; then
+
+                    if [ "$SSH_READY" != "true" ]; then
+
                     echo "ERROR: SSH did not become ready."
                     exit 1
-                fi
 
-                echo "========== RUNNING ANSIBLE =========="
+                    fi
+
+
+                echo "========== TESTING ANSIBLE CONNECTION =========="
 
                 cd ansible
 
                 export ANSIBLE_CONFIG=$(pwd)/ansible.cfg
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m ping
+
+
+                echo "========== RUNNING ANSIBLE PLAYBOOK =========="
 
                 ansible-playbook \
                     -i inventory/hosts \
@@ -696,40 +612,136 @@ pipeline {
                 '''
                 }
             }
-        }
+        }        
+
         
-        
-        stage('Verify Java & Docker') {
+        stage('Verify Java, Docker & Kubernetes') {
 
             when {
-                anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
-                    expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+                expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
-            
+        
+
             steps {
 
                 echo "========== VERIFYING SOFTWARE =========="
 
+                sshagent(credentials: ['agent-key']) {
+
                 sh '''
+                set -e
+
                 cd ansible
 
-                echo "===== JAVA VERSION ====="
-                ansible -i inventory/hosts terraform_servers -m shell -a "java -version"
+                export ANSIBLE_CONFIG=$(pwd)/ansible.cfg
 
-                echo "===== DOCKER VERSION ====="
-                ansible -i inventory/hosts terraform_servers -m shell -a "docker --version"
 
-                echo "===== DOCKER STATUS ====="
-                ansible -i inventory/hosts terraform_servers -b -m shell -a "docker ps"
+                echo "=========================================="
+                echo "JAVA VERSION"
+                echo "=========================================="
 
-                echo "===== DOCKER SERVICE ====="
-                ansible -i inventory/hosts terraform_servers -b -m shell -a "systemctl is-active docker"
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "java -version"
+
+
+                echo "=========================================="
+                echo "DOCKER VERSION"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "docker --version"
+
+
+                echo "=========================================="
+                echo "DOCKER STATUS"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -b \
+                    -m shell \
+                    -a "docker ps"
+
+
+                echo "=========================================="
+                echo "DOCKER SERVICE"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -b \
+                    -m shell \
+                    -a "systemctl is-active docker"
+
+
+                echo "=========================================="
+                echo "KUBECTL VERSION"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "kubectl version --client"
+
+
+                echo "=========================================="
+                echo "KUBECTL LOCATION"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "which kubectl"
+
+
+                echo "=========================================="
+                echo "MINIKUBE VERSION"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "minikube version"
+
+
+                echo "=========================================="
+                echo "MINIKUBE LOCATION"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "which minikube"
+
+
+                echo "=========================================="
+                echo "MINIKUBE STATUS"
+                echo "=========================================="
+
+                ansible \
+                    -i inventory/hosts \
+                    terraform_servers \
+                    -m shell \
+                    -a "minikube status"
                 '''
-
+                }
             }
         }
+
 
         stage('Deploy Docker Application') {
 
