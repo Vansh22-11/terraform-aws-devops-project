@@ -154,12 +154,15 @@ pipeline {
         stage('Check Existing EC2 State') {
            
             when {
-             
-                expression {
-                    params.DEPLOYMENT_MODE == 'CREATE_UPDATE'
+                allOf {
+                    expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                     }
-                }
-
+                    expression {
+                        env.EC2_STATE == 'stopped'
+                    }
+                    }
+            }
             steps {
               
                 script {
@@ -198,7 +201,7 @@ pipeline {
             when {
                 allOf {
                     expression {
-                    params.DEPLOYMENT_MODE == 'CREATE_UPDATE'
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                     }
                     expression {
                     env.EC2_STATE == 'stopped'
@@ -449,7 +452,7 @@ pipeline {
             
             when {
                 expression {
-                params.DEPLOYMENT_MODE == 'CREATE_UPDATE'
+                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
 
@@ -537,51 +540,104 @@ pipeline {
         }
 
         stage('Run Ansible Playbook') {
-          
+
+            when {
+                expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                }
+            }
+            }
+
             steps {
-                
+
                 echo "========== RUNNING ANSIBLE =========="
 
                 sshagent(['agent-key']) {
-                sh """
-                echo "Waiting for SSH on ${env.EC2_PUBLIC_IP}..."
 
-                for i in {1..30}; do
-                    if ssh -o StrictHostKeyChecking=no \
-                           -o ConnectTimeout=5 \
-                           ubuntu@${env.EC2_PUBLIC_IP} "echo SSH READY" 2>/dev/null
-                    then
-                        echo "SSH is ready."
-                        break
-                    fi
+                sh '''
+                INSTANCE_ID=$(terraform output -raw ec2_instance_id)
 
-                    echo "SSH not ready yet. Waiting..."
-                    sleep 10
-                done
+                echo "EC2 Instance ID = $INSTANCE_ID"
+
+                INSTANCE_STATE=$(aws ec2 describe-instances \
+                    --instance-ids "$INSTANCE_ID" \
+                    --query 'Reservations[0].Instances[0].State.Name' \
+                    --output text)
+
+                echo "EC2 State = $INSTANCE_STATE"
+
+                if [ "$INSTANCE_STATE" != "running" ]; then
+                    echo "ERROR: EC2 is not running."
+                    exit 1
+                fi
+
+                echo "Getting current EC2 public IP..."
+
+                EC2_PUBLIC_IP=$(aws ec2 describe-instances \
+                    --instance-ids "$INSTANCE_ID" \
+                    --query 'Reservations[0].Instances[0].PublicIpAddress' \
+                    --output text)
+
+                echo "EC2 PUBLIC IP = $EC2_PUBLIC_IP"
+
+                if [ -z "$EC2_PUBLIC_IP" ] || [ "$EC2_PUBLIC_IP" = "None" ]; then
+                    echo "ERROR: EC2 does not have a public IP."
+                    exit 1
+                fi
 
                 echo "Updating Ansible inventory..."
 
+                mkdir -p ansible/inventory
+
                 cat > ansible/inventory/hosts <<EOF
                 [terraform_servers]
-                ${env.EC2_PUBLIC_IP} ansible_user=ubuntu
+                $EC2_PUBLIC_IP ansible_user=ubuntu
                 EOF
 
                 echo "========== INVENTORY =========="
                 cat ansible/inventory/hosts
 
-                cd ansible
+                echo "========== WAITING FOR SSH =========="
 
-                export ANSIBLE_CONFIG=\$(pwd)/ansible.cfg
+                SSH_READY=false
+
+                for i in $(seq 1 30); do
+
+                    if ssh \
+                        -o StrictHostKeyChecking=no \
+                        -o ConnectTimeout=5 \
+                        ubuntu@$EC2_PUBLIC_IP "echo SSH READY" 2>/dev/null
+                    then
+                        echo "SSH is ready."
+                        SSH_READY=true
+                        break
+                    fi
+
+                    echo "SSH not ready yet. Attempt $i/30"
+                    sleep 10
+
+                done
+
+                if [ "$SSH_READY" != "true" ]; then
+                    echo "ERROR: SSH did not become ready."
+                    exit 1
+                fi
 
                 echo "========== RUNNING ANSIBLE =========="
+
+                cd ansible
+
+                export ANSIBLE_CONFIG=$(pwd)/ansible.cfg
 
                 ansible-playbook \
                     -i inventory/hosts \
                     playbooks/site.yml
-                """
+                '''
                 }
             }
         }
+        
+        
 
         stage('Verify Java & Docker') {
 
