@@ -151,88 +151,8 @@ pipeline {
             }
         }
 
-        stage('Check Existing EC2 State') {
-           
-            when {
-                allOf {
-                    expression {
-                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
-                    }
-                    expression {
-                        env.EC2_STATE == 'stopped'
-                    }
-                    }
-            }
-            steps {
-              
-                script {
-                    def instanceId = sh(
-                    script: "terraform output -raw ec2_instance_id",
-                    returnStdout: true
-                    ).trim()
 
-                    def ec2State = sh(
-                    script: """
-                    aws ec2 describe-instances \
-                    --instance-ids ${instanceId} \
-                    --query 'Reservations[0].Instances[0].State.Name' \
-                    --output text
-                    """,
-                    returnStdout: true
-                    ).trim()
 
-                    echo """
-                    ==========================================
-                    EC2 STATE CHECK
-                    ==========================================
-                    Instance ID : ${instanceId}
-                    EC2 State   : ${ec2State}
-                    ==========================================
-                    """
-
-                    env.EC2_INSTANCE_ID = instanceId
-                    env.EC2_STATE = ec2State
-                }
-            }
-        }
-
-        stage('Start EC2 If Required') {
-          
-            when {
-                allOf {
-                    expression {
-                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
-                    }
-                    expression {
-                    env.EC2_STATE == 'stopped'
-                }
-               
-                }
-            }
-
-            steps {
-                script {
-                    echo "EC2 is stopped. Starting EC2..."
-
-                    sh """
-                    aws ec2 start-instances \
-                    --instance-ids ${env.EC2_INSTANCE_ID}
-                    """
-
-                    echo "Waiting for EC2 to reach running state..."
-
-                    sh """
-                    aws ec2 wait instance-running \
-                    --instance-ids ${env.EC2_INSTANCE_ID}
-                    """
-
-                    echo "EC2 is now running."
-
-                    sleep(time: 10, unit: 'SECONDS')
-                }
-            }
-        }   
-        
         stage('Terraform Validate') {
 
             steps {
@@ -333,8 +253,117 @@ pipeline {
                 }
         
         }
+
+        stage('Ensure EC2 Running & Generate Inventory') {
+
+            when {
+                expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                }
+            }
         
 
+            steps {
+
+                script {
+
+                    sh '''
+                    echo "=========================================="
+                    echo "CHECKING EC2 INSTANCE"
+                    echo "=========================================="
+
+                    INSTANCE_ID=$(terraform output -raw ec2_instance_id)
+
+                    echo "EC2 Instance ID: $INSTANCE_ID"
+
+                    INSTANCE_STATE=$(aws ec2 describe-instances \
+                    --instance-ids "$INSTANCE_ID" \
+                    --query 'Reservations[0].Instances[0].State.Name' \
+                    --output text)
+
+                    echo "Current EC2 State: $INSTANCE_STATE"
+
+                    if [ "$INSTANCE_STATE" = "stopped" ]; then
+
+                    echo "EC2 is stopped."
+                    echo "Starting EC2..."
+
+                    aws ec2 start-instances \
+                    --instance-ids "$INSTANCE_ID"
+
+                    echo "Waiting for EC2 to become running..."
+
+                    aws ec2 wait instance-running \
+                    --instance-ids "$INSTANCE_ID"
+
+                    echo "EC2 is now running."
+
+                    # Give AWS a little time to assign networking
+                    sleep 10
+
+                    elif [ "$INSTANCE_STATE" = "running" ]; then
+
+                    echo "EC2 is already running."
+
+                    else
+
+                    echo "ERROR: EC2 is in unexpected state: $INSTANCE_STATE"
+                    exit 1
+
+                    fi
+
+                    echo "=========================================="
+                    echo "GETTING CURRENT PUBLIC IP"
+                    echo "=========================================="
+
+                    EC2_PUBLIC_IP=""
+
+                    for i in $(seq 1 30); do
+
+                    EC2_PUBLIC_IP=$(aws ec2 describe-instances \
+                    --instance-ids "$INSTANCE_ID" \
+                    --query 'Reservations[0].Instances[0].PublicIpAddress' \
+                    --output text)
+
+                    if [ "$EC2_PUBLIC_IP" != "None" ] && [ -n "$EC2_PUBLIC_IP" ]; then
+                    break
+                    fi
+
+                    echo "Public IP not available yet. Attempt $i/30"
+                    sleep 5
+
+                    done
+
+                    if [ -z "$EC2_PUBLIC_IP" ] || [ "$EC2_PUBLIC_IP" = "None" ]; then
+
+                    echo "ERROR: EC2 does not have a public IP."
+                    exit 1
+
+                    fi
+
+                    echo "CURRENT EC2 PUBLIC IP: $EC2_PUBLIC_IP"
+
+                    echo "=========================================="
+                    echo "CREATING ANSIBLE INVENTORY"
+                    echo "=========================================="
+
+                    mkdir -p ansible/inventory
+
+                    cat > ansible/inventory/hosts <<EOF
+                    [terraform_servers]
+                    $EC2_PUBLIC_IP ansible_user=ubuntu
+                    EOF
+
+                    echo "Generated inventory:"
+
+                    cat ansible/inventory/hosts
+                    '''
+
+                }
+
+            }
+        }
+        
 
         stage('Terraform Outputs') {
 
@@ -349,6 +378,7 @@ pipeline {
             }
 
         }
+
 
         stage('Architecture Summary') {
             
@@ -546,7 +576,8 @@ pipeline {
                     params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
-            }
+            
+
 
             steps {
 
@@ -638,7 +669,6 @@ pipeline {
         }
         
         
-
         stage('Verify Java & Docker') {
 
             when {
