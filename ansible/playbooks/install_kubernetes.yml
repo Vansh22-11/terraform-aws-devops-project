@@ -1,0 +1,65 @@
+---
+- name: Install and Configure Kubernetes Tools
+  hosts: terraform_servers
+  become: yes
+
+  tasks:
+
+    - name: Check kubectl installation
+      command: kubectl version --client
+      register: kubectl_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display kubectl version
+      debug:
+        msg: "{{ kubectl_check.stdout }}"
+
+    - name: Check Minikube installation
+      command: minikube version
+      register: minikube_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display Minikube version
+      debug:
+        msg: "{{ minikube_check.stdout }}"
+
+    - name: Install required Kubernetes packages
+      apt:
+        name:
+          - curl
+          - wget
+          - conntrack
+        state: present
+        update_cache: yes
+
+    - name: Install kubectl if missing
+      shell: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        rm -f kubectl
+      when: kubectl_check.rc != 0
+
+    - name: Install Minikube if missing
+      shell: |
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        install minikube-linux-amd64 /usr/local/bin/minikube
+        rm -f minikube-linux-amd64
+      when: minikube_check.rc != 0
+
+    - name: Verify kubectl
+      command: kubectl version --client
+      register: kubectl_final
+      changed_when: false
+
+    - name: Verify Minikube
+      command: minikube version
+      register: minikube_final
+      changed_when: false
+
+    - name: Display Kubernetes tools
+      debug:
+        msg:
+          - "kubectl: {{ kubectl_final.stdout }}"
+          - "Minikube: {{ minikube_final.stdout }}"

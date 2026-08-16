@@ -2,3 +2,5 @@
 - import_playbook: install_java.yml
 
 - import_playbook: install_docker.yml
+
+- import_playbook: install_kubernetes.yml
