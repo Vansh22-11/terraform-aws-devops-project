@@ -362,11 +362,13 @@ pipeline {
 
                     mkdir -p ansible/inventory
 
-                    # Remove any old inventory first
-                    rm -f ansible/inventory/hosts
+                    printf '%s\n' \
+                      '[terraform_servers]' \
+                      "$EC2_PUBLIC_IP ansible_user=ubuntu" \
+                      > ansible/inventory/hosts
 
-                    # Create clean Ansible inventory
-                    printf '[terraform_servers]\\n%s ansible_user=ubuntu\\n' "$EC2_PUBLIC_IP" > ansible/inventory/hosts
+                    echo "Generated inventory:"
+                    cat ansible/inventory/hosts
 
 
                     echo "=========================================="
