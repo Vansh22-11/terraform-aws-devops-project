@@ -1,2 +1,2 @@
 [terraform_servers]
-16.171.233.220 ansible_user=ubuntu
+${CURRENT_EC2_PUBLIC_IP} ansible_user=ubuntu
