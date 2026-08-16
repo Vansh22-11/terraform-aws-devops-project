@@ -258,10 +258,9 @@ pipeline {
 
             when {
                 expression {
-                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
-        
 
             steps {
 
@@ -289,16 +288,15 @@ pipeline {
                     echo "Starting EC2..."
 
                     aws ec2 start-instances \
-                    --instance-ids "$INSTANCE_ID"
+                        --instance-ids "$INSTANCE_ID"
 
                     echo "Waiting for EC2 to become running..."
 
                     aws ec2 wait instance-running \
-                    --instance-ids "$INSTANCE_ID"
+                        --instance-ids "$INSTANCE_ID"
 
                     echo "EC2 is now running."
 
-                    # Give AWS a little time to assign networking
                     sleep 10
 
                     elif [ "$INSTANCE_STATE" = "running" ]; then
@@ -312,6 +310,7 @@ pipeline {
 
                     fi
 
+
                     echo "=========================================="
                     echo "GETTING CURRENT PUBLIC IP"
                     echo "=========================================="
@@ -321,18 +320,19 @@ pipeline {
                     for i in $(seq 1 30); do
 
                     EC2_PUBLIC_IP=$(aws ec2 describe-instances \
-                    --instance-ids "$INSTANCE_ID" \
-                    --query 'Reservations[0].Instances[0].PublicIpAddress' \
-                    --output text)
+                        --instance-ids "$INSTANCE_ID" \
+                        --query 'Reservations[0].Instances[0].PublicIpAddress' \
+                        --output text)
 
                     if [ "$EC2_PUBLIC_IP" != "None" ] && [ -n "$EC2_PUBLIC_IP" ]; then
-                    break
+                        break
                     fi
 
                     echo "Public IP not available yet. Attempt $i/30"
                     sleep 5
 
                     done
+
 
                     if [ -z "$EC2_PUBLIC_IP" ] || [ "$EC2_PUBLIC_IP" = "None" ]; then
 
@@ -341,7 +341,20 @@ pipeline {
 
                     fi
 
+
                     echo "CURRENT EC2 PUBLIC IP: $EC2_PUBLIC_IP"
+
+
+                    echo "=========================================="
+                    echo "SAVING CURRENT PUBLIC IP"
+                    echo "=========================================="
+
+                    # Make the IP available to later Jenkins stages
+                    echo "$EC2_PUBLIC_IP" > ec2_public_ip.txt
+
+                    echo "Saved EC2 IP:"
+                    cat ec2_public_ip.txt
+
 
                     echo "=========================================="
                     echo "CREATING ANSIBLE INVENTORY"
@@ -349,21 +362,36 @@ pipeline {
 
                     mkdir -p ansible/inventory
 
-                    cat > ansible/inventory/hosts <<EOF
-                    [terraform_servers]
-                    $EC2_PUBLIC_IP ansible_user=ubuntu
-                    EOF
+                    # Remove any old inventory first
+                    rm -f ansible/inventory/hosts
 
-                    echo "Generated inventory:"
+                    # Create clean Ansible inventory
+                    printf '[terraform_servers]\\n%s ansible_user=ubuntu\\n' "$EC2_PUBLIC_IP" > ansible/inventory/hosts
 
-                    cat ansible/inventory/hosts
+
+                    echo "=========================================="
+                    echo "GENERATED INVENTORY"
+                    echo "=========================================="
+
+                    cat -A ansible/inventory/hosts
+
+                    echo "=========================================="
+                    echo "VERIFYING INVENTORY"
+                    echo "=========================================="
+
+                    cd ansible
+
+                    ansible-inventory \
+                    -i inventory/hosts \
+                    --list
+
+                    echo "=========================================="
+                    echo "INVENTORY CREATED SUCCESSFULLY"
+                    echo "=========================================="
                     '''
-
                 }
-
-            }
-        }
-        
+                }
+        }               
 
         stage('Terraform Outputs') {
 
