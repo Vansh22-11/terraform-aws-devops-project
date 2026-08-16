@@ -5,25 +5,9 @@
 
   tasks:
 
-    - name: Check kubectl installation
-      command: kubectl version --client
-      register: kubectl_check
-      changed_when: false
-      failed_when: false
-
-    - name: Display kubectl version
-      debug:
-        msg: "{{ kubectl_check.stdout }}"
-
-    - name: Check Minikube installation
-      command: minikube version
-      register: minikube_check
-      changed_when: false
-      failed_when: false
-
-    - name: Display Minikube version
-      debug:
-        msg: "{{ minikube_check.stdout }}"
+    # --------------------------------------------------
+    # REQUIRED PACKAGES
+    # --------------------------------------------------
 
     - name: Install required Kubernetes packages
       apt:
@@ -34,6 +18,27 @@
         state: present
         update_cache: yes
 
+
+    # --------------------------------------------------
+    # CHECK KUBECTL
+    # --------------------------------------------------
+
+    - name: Check kubectl installation
+      command: kubectl version --client
+      register: kubectl_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display existing kubectl version
+      debug:
+        msg: "{{ kubectl_check.stdout }}"
+      when: kubectl_check.rc == 0
+
+
+    # --------------------------------------------------
+    # INSTALL KUBECTL ONLY IF MISSING
+    # --------------------------------------------------
+
     - name: Install kubectl if missing
       shell: |
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -41,25 +46,127 @@
         rm -f kubectl
       when: kubectl_check.rc != 0
 
+
+    # --------------------------------------------------
+    # CHECK MINIKUBE
+    # --------------------------------------------------
+
+    - name: Check Minikube installation
+      command: minikube version
+      register: minikube_check
+      changed_when: false
+      failed_when: false
+
+    - name: Display existing Minikube version
+      debug:
+        msg: "{{ minikube_check.stdout }}"
+      when: minikube_check.rc == 0
+
+
+    # --------------------------------------------------
+    # INSTALL MINIKUBE ONLY IF MISSING
+    # --------------------------------------------------
+
     - name: Install Minikube if missing
       shell: |
         curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-        install minikube-linux-amd64 /usr/local/bin/minikube
+        install -o root -g root -m 0755 minikube-linux-amd64 /usr/local/bin/minikube
         rm -f minikube-linux-amd64
       when: minikube_check.rc != 0
+
+
+    # --------------------------------------------------
+    # VERIFY DOCKER
+    # --------------------------------------------------
+
+    - name: Check Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+
+    # --------------------------------------------------
+    # VERIFY KUBECTL
+    # --------------------------------------------------
 
     - name: Verify kubectl
       command: kubectl version --client
       register: kubectl_final
       changed_when: false
 
+    - name: Display kubectl version
+      debug:
+        msg: "{{ kubectl_final.stdout }}"
+
+
+    # --------------------------------------------------
+    # VERIFY MINIKUBE
+    # --------------------------------------------------
+
     - name: Verify Minikube
       command: minikube version
       register: minikube_final
       changed_when: false
 
-    - name: Display Kubernetes tools
+    - name: Display Minikube version
       debug:
-        msg:
-          - "kubectl: {{ kubectl_final.stdout }}"
-          - "Minikube: {{ minikube_final.stdout }}"
+        msg: "{{ minikube_final.stdout }}"
+
+
+    # --------------------------------------------------
+    # CHECK MINIKUBE STATUS
+    # --------------------------------------------------
+
+    - name: Check Minikube status
+      become: yes
+      become_user: ubuntu
+      command: minikube status --output=json
+      register: minikube_status
+      changed_when: false
+      failed_when: false
+
+
+    # --------------------------------------------------
+    # START MINIKUBE IF NOT RUNNING
+    # --------------------------------------------------
+
+    - name: Start Minikube with Docker driver
+      become: yes
+      become_user: ubuntu
+      command: minikube start --driver=docker
+      when: >
+        minikube_status.rc != 0 or
+        '"Running"' not in minikube_status.stdout
+
+
+    # --------------------------------------------------
+    # FINAL MINIKUBE STATUS
+    # --------------------------------------------------
+
+    - name: Check final Minikube status
+      become: yes
+      become_user: ubuntu
+      command: minikube status
+      register: minikube_final_status
+      changed_when: false
+
+    - name: Display Minikube status
+      debug:
+        msg: "{{ minikube_final_status.stdout }}"
+
+
+    # --------------------------------------------------
+    # VERIFY KUBERNETES NODE
+    # --------------------------------------------------
+
+    - name: Check Kubernetes nodes
+      become: yes
+      become_user: ubuntu
+      command: kubectl get nodes
+      register: kubernetes_nodes
+      changed_when: false
+
+    - name: Display Kubernetes nodes
+      debug:
+        msg: "{{ kubernetes_nodes.stdout }}"
