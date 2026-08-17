@@ -7,55 +7,73 @@
     aws_region: eu-north-1
     aws_account_id: "251376345669"
     ecr_repository: terraform-devops-ecr
-    image_tag: latest
+
+    image_tag: ""
 
     ecr_registry: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
     image_name: "{{ ecr_registry }}/{{ ecr_repository }}:{{ image_tag }}"
 
-    app_name: tasksphere
-    app_port: 80
-    node_port: 30080
-
   tasks:
 
-    # ---------------------------------------------------------
-    # 1. Check Minikube
-    # ---------------------------------------------------------
+    # =========================================================
+    # 1. Validate Image Tag
+    # =========================================================
+
+    - name: Check image tag
+      fail:
+        msg: "IMAGE TAG was not provided by Jenkins."
+      when: image_tag | length == 0
+
+
+    - name: Display image information
+      debug:
+        msg:
+          - "ECR Registry: {{ ecr_registry }}"
+          - "Repository: {{ ecr_repository }}"
+          - "Image Tag: {{ image_tag }}"
+          - "Image: {{ image_name }}"
+
+
+    # =========================================================
+    # 2. Check Minikube
+    # =========================================================
 
     - name: Check Minikube status
+      become: false
       command: minikube status
       register: minikube_status
       changed_when: false
       failed_when: false
+
 
     - name: Display Minikube status
       debug:
         var: minikube_status.stdout_lines
 
 
-    # ---------------------------------------------------------
-    # 2. Start Minikube if it is stopped
-    # ---------------------------------------------------------
+    # =========================================================
+    # 3. Start Minikube if required
+    # =========================================================
 
     - name: Start Minikube
       become: false
       command: minikube start --driver=docker
       when: "'Running' not in minikube_status.stdout"
-      register: minikube_start
+
 
     - name: Wait for Minikube
       become: false
       command: minikube status
       register: minikube_running
-      retries: 10
+      retries: 12
       delay: 10
       until: "'Running' in minikube_running.stdout"
       changed_when: false
 
 
-    # ---------------------------------------------------------
-    # 3. Verify Kubernetes node
-    # ---------------------------------------------------------
+    # =========================================================
+    # 4. Verify Kubernetes
+    # =========================================================
 
     - name: Check Kubernetes nodes
       become: false
@@ -63,100 +81,100 @@
       register: kubernetes_nodes
       changed_when: false
 
+
     - name: Display Kubernetes nodes
       debug:
         var: kubernetes_nodes.stdout_lines
 
 
-    # ---------------------------------------------------------
-    # 4. Login to ECR
-    # ---------------------------------------------------------
+    # =========================================================
+    # 5. Login to ECR
+    # =========================================================
 
     - name: Login to Amazon ECR
+      become: false
       shell: |
-        aws ecr get-login-password --region {{ aws_region }} | \
+        aws ecr get-login-password --region {{ aws_region }} |
         docker login \
           --username AWS \
           --password-stdin {{ ecr_registry }}
-      register: ecr_login
       changed_when: false
 
 
-    # ---------------------------------------------------------
-    # 5. Pull application image from ECR
-    # ---------------------------------------------------------
+    # =========================================================
+    # 6. Pull Numbered Image from ECR
+    # =========================================================
 
     - name: Pull application image from ECR
+      become: false
       command: docker pull {{ image_name }}
       register: docker_pull
 
+
     - name: Display pulled image
       debug:
-        msg: "{{ docker_pull.stdout_lines }}"
+        var: docker_pull.stdout_lines
 
 
-    # ---------------------------------------------------------
-    # 6. Make image available to Minikube
-    # ---------------------------------------------------------
+    # =========================================================
+    # 7. Load Image into Minikube
+    # =========================================================
 
     - name: Load application image into Minikube
       become: false
       command: minikube image load {{ image_name }}
       register: minikube_image_load
 
+
     - name: Display Minikube image load result
       debug:
         var: minikube_image_load.stdout_lines
 
 
-    # ---------------------------------------------------------
-    # 7. Delete previous application deployment
-    # ---------------------------------------------------------
+    # =========================================================
+    # 8. Apply Kubernetes Deployment
+    # =========================================================
 
-    - name: Delete old Kubernetes deployment
+    - name: Apply Kubernetes deployment
       become: false
-      command: kubectl delete deployment {{ app_name }} --ignore-not-found=true
-      changed_when: false
+      command: kubectl apply -f ../kubernetes/deployment.yml
 
 
-    # ---------------------------------------------------------
-    # 8. Create Kubernetes Deployment
-    # ---------------------------------------------------------
+    # =========================================================
+    # 9. Apply Kubernetes Service
+    # =========================================================
 
-    - name: Create Kubernetes deployment
+    - name: Apply Kubernetes service
       become: false
-      shell: |
-        kubectl create deployment {{ app_name }} \
-          --image={{ image_name }} \
-          --port={{ app_port }}
+      command: kubectl apply -f ../kubernetes/service.yml
 
 
-    # ---------------------------------------------------------
-    # 9. Expose application using NodePort
-    # ---------------------------------------------------------
+    # =========================================================
+    # 10. Restart Deployment with New Image
+    # =========================================================
 
-    - name: Create Kubernetes service
+    - name: Update deployment image
       become: false
-      shell: |
-        kubectl expose deployment {{ app_name }} \
-          --type=NodePort \
-          --port={{ app_port }} \
-          --target-port={{ app_port }} \
-          --name={{ app_name }}-service
+      command: >
+        kubectl set image deployment/terraform-devops-app
+        terraform-devops-app={{ image_name }}
 
 
-    # ---------------------------------------------------------
-    # 10. Wait for Pod
-    # ---------------------------------------------------------
+    # =========================================================
+    # 11. Wait for Rollout
+    # =========================================================
 
     - name: Wait for application rollout
       become: false
-      command: kubectl rollout status deployment/{{ app_name }} --timeout=180s
+      command: >
+        kubectl rollout status
+        deployment/terraform-devops-app
+        --timeout=180s
 
 
-    # ---------------------------------------------------------
-    # 11. Show Pods
-    # ---------------------------------------------------------
+    # =========================================================
+    # 12. Show Pods
+    # =========================================================
 
     - name: Show application pods
       become: false
@@ -164,29 +182,31 @@
       register: application_pods
       changed_when: false
 
+
     - name: Display application pods
       debug:
         var: application_pods.stdout_lines
 
 
-    # ---------------------------------------------------------
-    # 12. Show Kubernetes service
-    # ---------------------------------------------------------
+    # =========================================================
+    # 13. Show Service
+    # =========================================================
 
     - name: Show application service
       become: false
-      command: kubectl get service {{ app_name }}-service
+      command: kubectl get service terraform-devops-service
       register: application_service
       changed_when: false
+
 
     - name: Display application service
       debug:
         var: application_service.stdout_lines
 
 
-    # ---------------------------------------------------------
-    # 13. Get Minikube IP
-    # ---------------------------------------------------------
+    # =========================================================
+    # 14. Get Minikube IP
+    # =========================================================
 
     - name: Get Minikube IP
       become: false
@@ -194,21 +214,27 @@
       register: minikube_ip
       changed_when: false
 
+
     - name: Display Minikube IP
       debug:
         msg: "Minikube IP = {{ minikube_ip.stdout }}"
 
 
-    # ---------------------------------------------------------
-    # 14. Get NodePort
-    # ---------------------------------------------------------
+    # =========================================================
+    # 15. Get NodePort
+    # =========================================================
 
     - name: Get application NodePort
       become: false
-      command: kubectl get service {{ app_name }}-service -o jsonpath='{.spec.ports[0].nodePort}'
+      command: >
+        kubectl get service terraform-devops-service
+        -o jsonpath='{.spec.ports[0].nodePort}'
       register: application_nodeport
       changed_when: false
 
+
     - name: Display application URL
       debug:
-        msg: "Application URL = http://{{ minikube_ip.stdout }}:{{ application_nodeport.stdout }}"
+        msg: >
+          Application URL =
+          http://{{ minikube_ip.stdout }}:{{ application_nodeport.stdout }}
