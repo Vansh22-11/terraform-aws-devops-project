@@ -1,0 +1,214 @@
+---
+- name: Deploy Application on Minikube
+  hosts: terraform_servers
+  become: yes
+
+  vars:
+    aws_region: eu-north-1
+    aws_account_id: "251376345669"
+    ecr_repository: terraform-devops-ecr
+    image_tag: latest
+
+    ecr_registry: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
+    image_name: "{{ ecr_registry }}/{{ ecr_repository }}:{{ image_tag }}"
+
+    app_name: tasksphere
+    app_port: 80
+    node_port: 30080
+
+  tasks:
+
+    # ---------------------------------------------------------
+    # 1. Check Minikube
+    # ---------------------------------------------------------
+
+    - name: Check Minikube status
+      command: minikube status
+      register: minikube_status
+      changed_when: false
+      failed_when: false
+
+    - name: Display Minikube status
+      debug:
+        var: minikube_status.stdout_lines
+
+
+    # ---------------------------------------------------------
+    # 2. Start Minikube if it is stopped
+    # ---------------------------------------------------------
+
+    - name: Start Minikube
+      become: false
+      command: minikube start --driver=docker
+      when: "'Running' not in minikube_status.stdout"
+      register: minikube_start
+
+    - name: Wait for Minikube
+      become: false
+      command: minikube status
+      register: minikube_running
+      retries: 10
+      delay: 10
+      until: "'Running' in minikube_running.stdout"
+      changed_when: false
+
+
+    # ---------------------------------------------------------
+    # 3. Verify Kubernetes node
+    # ---------------------------------------------------------
+
+    - name: Check Kubernetes nodes
+      become: false
+      command: kubectl get nodes
+      register: kubernetes_nodes
+      changed_when: false
+
+    - name: Display Kubernetes nodes
+      debug:
+        var: kubernetes_nodes.stdout_lines
+
+
+    # ---------------------------------------------------------
+    # 4. Login to ECR
+    # ---------------------------------------------------------
+
+    - name: Login to Amazon ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | \
+        docker login \
+          --username AWS \
+          --password-stdin {{ ecr_registry }}
+      register: ecr_login
+      changed_when: false
+
+
+    # ---------------------------------------------------------
+    # 5. Pull application image from ECR
+    # ---------------------------------------------------------
+
+    - name: Pull application image from ECR
+      command: docker pull {{ image_name }}
+      register: docker_pull
+
+    - name: Display pulled image
+      debug:
+        msg: "{{ docker_pull.stdout_lines }}"
+
+
+    # ---------------------------------------------------------
+    # 6. Make image available to Minikube
+    # ---------------------------------------------------------
+
+    - name: Load application image into Minikube
+      become: false
+      command: minikube image load {{ image_name }}
+      register: minikube_image_load
+
+    - name: Display Minikube image load result
+      debug:
+        var: minikube_image_load.stdout_lines
+
+
+    # ---------------------------------------------------------
+    # 7. Delete previous application deployment
+    # ---------------------------------------------------------
+
+    - name: Delete old Kubernetes deployment
+      become: false
+      command: kubectl delete deployment {{ app_name }} --ignore-not-found=true
+      changed_when: false
+
+
+    # ---------------------------------------------------------
+    # 8. Create Kubernetes Deployment
+    # ---------------------------------------------------------
+
+    - name: Create Kubernetes deployment
+      become: false
+      shell: |
+        kubectl create deployment {{ app_name }} \
+          --image={{ image_name }} \
+          --port={{ app_port }}
+
+
+    # ---------------------------------------------------------
+    # 9. Expose application using NodePort
+    # ---------------------------------------------------------
+
+    - name: Create Kubernetes service
+      become: false
+      shell: |
+        kubectl expose deployment {{ app_name }} \
+          --type=NodePort \
+          --port={{ app_port }} \
+          --target-port={{ app_port }} \
+          --name={{ app_name }}-service
+
+
+    # ---------------------------------------------------------
+    # 10. Wait for Pod
+    # ---------------------------------------------------------
+
+    - name: Wait for application rollout
+      become: false
+      command: kubectl rollout status deployment/{{ app_name }} --timeout=180s
+
+
+    # ---------------------------------------------------------
+    # 11. Show Pods
+    # ---------------------------------------------------------
+
+    - name: Show application pods
+      become: false
+      command: kubectl get pods -o wide
+      register: application_pods
+      changed_when: false
+
+    - name: Display application pods
+      debug:
+        var: application_pods.stdout_lines
+
+
+    # ---------------------------------------------------------
+    # 12. Show Kubernetes service
+    # ---------------------------------------------------------
+
+    - name: Show application service
+      become: false
+      command: kubectl get service {{ app_name }}-service
+      register: application_service
+      changed_when: false
+
+    - name: Display application service
+      debug:
+        var: application_service.stdout_lines
+
+
+    # ---------------------------------------------------------
+    # 13. Get Minikube IP
+    # ---------------------------------------------------------
+
+    - name: Get Minikube IP
+      become: false
+      command: minikube ip
+      register: minikube_ip
+      changed_when: false
+
+    - name: Display Minikube IP
+      debug:
+        msg: "Minikube IP = {{ minikube_ip.stdout }}"
+
+
+    # ---------------------------------------------------------
+    # 14. Get NodePort
+    # ---------------------------------------------------------
+
+    - name: Get application NodePort
+      become: false
+      command: kubectl get service {{ app_name }}-service -o jsonpath='{.spec.ports[0].nodePort}'
+      register: application_nodeport
+      changed_when: false
+
+    - name: Display application URL
+      debug:
+        msg: "Application URL = http://{{ minikube_ip.stdout }}:{{ application_nodeport.stdout }}"

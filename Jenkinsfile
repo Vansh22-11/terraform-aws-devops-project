@@ -714,8 +714,7 @@ pipeline {
                     -i inventory/hosts \
                     terraform_servers \
                     -m shell \
-                    -a "minikube version"
-
+                    -a "minikube status || true"
 
                 echo "=========================================="
                 echo "MINIKUBE LOCATION"
@@ -743,37 +742,61 @@ pipeline {
         }
 
 
-        stage('Deploy Docker Application') {
+        stage('Deploy Application to Minikube') {
 
             when {
-                anyOf {
-                    expression { params.DEPLOYMENT_MODE == 'Create / Update Infrastructure' }
-                    expression { params.DEPLOYMENT_MODE == 'Destroy and Rebuild' }
+                expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
                 }
             }
-
+        
             steps {
 
-                echo "========== DEPLOY APPLICATION =========="
+                echo "========== DEPLOYING APPLICATION TO MINIKUBE =========="
 
-                sshagent(credentials: ['agent-key']) {
+                    sshagent(credentials: ['agent-key']) {
 
-                sh '''
-                cd ansible
+                    sh '''
+                    set -e
 
-                export ANSIBLE_CONFIG=$PWD/ansible.cfg
+                    cd ansible
 
-                ansible-playbook \
-                -i inventory/hosts \
-                playbooks/deploy-app.yml
-                '''
+                    export ANSIBLE_CONFIG=$(pwd)/ansible.cfg
 
+                    echo "=========================================="
+                    echo "ECR IMAGE"
+                    echo "=========================================="
+
+                    ECR_REGISTRY="251376345669.dkr.ecr.eu-north-1.amazonaws.com"
+                    ECR_REPOSITORY="terraform-devops-ecr"
+                    IMAGE_TAG="latest"
+
+                    export ECR_REGISTRY
+                    export ECR_REPOSITORY
+                    export IMAGE_TAG
+
+                    echo "ECR Registry  : $ECR_REGISTRY"
+                    echo "Repository    : $ECR_REPOSITORY"
+                    echo "Image Tag     : $IMAGE_TAG"
+
+                    echo "=========================================="
+                    echo "RUNNING ANSIBLE DEPLOYMENT"
+                    echo "=========================================="
+
+                    ansible-playbook \
+                    -i inventory/hosts \
+                    playbooks/deploy_application.yml \
+                    -e "image_tag=$IMAGE_TAG"
+
+                    echo "=========================================="
+                    echo "KUBERNETES DEPLOYMENT COMPLETE"
+                    echo "=========================================="
+                    '''
                 }
-
             }
-
         }
 
+        
         stage('Upload Project To S3') {
 
             steps {

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: terraform-devops-app
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: terraform-devops-app
+
+  template:
+    metadata:
+      labels:
+        app: terraform-devops-app
+
+    spec:
+      containers:
+        - name: terraform-devops-app
+
+          image: IMAGE_PLACEHOLDER
+
+          ports:
+            - containerPort: 80
+
+          imagePullPolicy: Always
+
+      imagePullSecrets:
+        - name: ecr-secret
