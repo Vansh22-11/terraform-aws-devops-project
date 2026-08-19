@@ -107,7 +107,7 @@
 
     - name: Pull application image from ECR
       become: false
-      command: docker pull {{ image_name }}
+      command: docker pull {{ image_tag: "" }}
       register: docker_pull
 
 
@@ -122,7 +122,7 @@
 
     - name: Load application image into Minikube
       become: false
-      command: minikube image load {{ image_name }}
+      command: minikube image load {{ image_tag: "" }}
       register: minikube_image_load
 
 
@@ -157,7 +157,7 @@
       become: false
       command: >
         kubectl set image deployment/terraform-devops-app
-        terraform-devops-app={{ image_name }}
+        terraform-devops-app={{ image_tag: "" }}
 
 
     # =========================================================
