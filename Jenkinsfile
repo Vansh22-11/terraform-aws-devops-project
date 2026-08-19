@@ -788,15 +788,15 @@ pipeline {
                     ECR_REPOSITORY="terraform-devops-ecr"
                     IMAGE_TAG="${params.IMAGE_TAG}"
 
-                    echo "ECR Registry  : \\\$ECR_REGISTRY"
-                    echo "ECR Repository: \\\$ECR_REPOSITORY"
-                    echo "Image Tag     : \\\$IMAGE_TAG"
+                    echo "ECR Registry  : \$ECR_REGISTRY"
+                    echo "ECR Repository: \$ECR_REPOSITORY"
+                    echo "Image Tag     : \$IMAGE_TAG"
 
                     echo "=========================================="
                     echo "FULL IMAGE"
                     echo "=========================================="
 
-                    echo "\\\$ECR_REGISTRY/\\\$ECR_REPOSITORY:\\\$IMAGE_TAG"
+                    echo "\$ECR_REGISTRY/\$ECR_REPOSITORY:\$IMAGE_TAG"
 
                     echo "=========================================="
                     echo "RUNNING ANSIBLE DEPLOYMENT"
@@ -805,7 +805,7 @@ pipeline {
                     ansible-playbook \\
                         -i inventory/hosts \\
                         playbooks/deploy_application.yml \\
-                        -e "image_tag=\\\$IMAGE_TAG"
+                        -e "image_tag=\$IMAGE_TAG"
 
                     echo "=========================================="
                     echo "KUBERNETES DEPLOYMENT COMPLETE"

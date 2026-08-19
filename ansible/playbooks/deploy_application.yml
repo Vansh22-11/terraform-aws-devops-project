@@ -107,7 +107,7 @@
 
     - name: Pull application image from ECR
       become: false
-      command: docker pull {{ image_tag: "" }}
+      command: docker pull {{ image_name }}
       register: docker_pull
 
 
@@ -122,7 +122,7 @@
 
     - name: Load application image into Minikube
       become: false
-      command: minikube image load {{ image_tag: "" }}
+      command: minikube image load {{ image_name }}
       register: minikube_image_load
 
 
@@ -135,18 +135,34 @@
     # 8. Apply Kubernetes Deployment
     # =========================================================
 
+    - name: Copy Kubernetes deployment manifest
+      become: false
+      copy:
+        src: ../Kubernetes/deployment.yml
+        dest: /tmp/terraform-devops-deployment.yml
+        owner: ubuntu
+        mode: '0644'
+
     - name: Apply Kubernetes deployment
       become: false
-      command: kubectl apply -f ../kubernetes/deployment.yml
+      command: kubectl apply -f /tmp/terraform-devops-deployment.yml
 
 
     # =========================================================
     # 9. Apply Kubernetes Service
     # =========================================================
 
+    - name: Copy Kubernetes service manifest
+      become: false
+      copy:
+        src: ../Kubernetes/Service.yml
+        dest: /tmp/terraform-devops-service.yml
+        owner: ubuntu
+        mode: '0644'
+
     - name: Apply Kubernetes service
       become: false
-      command: kubectl apply -f ../kubernetes/service.yml
+      command: kubectl apply -f /tmp/terraform-devops-service.yml
 
 
     # =========================================================
@@ -157,7 +173,7 @@
       become: false
       command: >
         kubectl set image deployment/terraform-devops-app
-        terraform-devops-app={{ image_tag: "" }}
+        terraform-devops-app={{ image_name }}
 
 
     # =========================================================
