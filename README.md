@@ -19,3 +19,35 @@ Infrastructure includes:
 CI/CD:
 
 VS Code → GitHub → Jenkins Dynamic EC2 Agent → Terraform → AWS → S3
+
+## Monitoring
+
+The deployment playbook installs Prometheus in Minikube from
+`ansible/Kubernetes/prometheus.yml`.
+
+Check Prometheus:
+
+```bash
+kubectl get pod -l app=prometheus
+kubectl get service prometheus
+curl http://$(minikube ip):30090/-/ready
+```
+
+Open the Prometheus web interface at:
+
+```text
+http://<MINIKUBE_IP>:30090
+```
+
+Prometheus discovers pods that have these annotations and expose a metrics
+endpoint:
+
+```yaml
+prometheus.io/scrape: "true"
+prometheus.io/path: "/metrics"
+prometheus.io/port: "8080"
+```
+
+Prometheus cannot collect application metrics from a pod that does not expose
+a Prometheus-compatible metrics endpoint. The current Nginx application serves
+HTML only, so it is not automatically a metrics target.

@@ -166,7 +166,30 @@
 
 
     # =========================================================
-    # 10. Restart Deployment with New Image
+    # 10. Deploy Prometheus monitoring
+    # =========================================================
+
+    - name: Copy Prometheus manifest
+      become: false
+      copy:
+        src: ../Kubernetes/prometheus.yml
+        dest: /tmp/prometheus.yml
+        owner: ubuntu
+        mode: '0644'
+
+    - name: Apply Prometheus manifest
+      become: false
+      command: kubectl apply -f /tmp/prometheus.yml
+
+    - name: Wait for Prometheus rollout
+      become: false
+      command: >
+        kubectl rollout status deployment/prometheus
+        --timeout=180s
+
+
+    # =========================================================
+    # 11. Restart Deployment with New Image
     # =========================================================
 
     - name: Update deployment image
@@ -177,7 +200,7 @@
 
 
     # =========================================================
-    # 11. Wait for Rollout
+    # 12. Wait for Rollout
     # =========================================================
 
     - name: Wait for application rollout
@@ -189,7 +212,7 @@
 
 
     # =========================================================
-    # 12. Show Pods
+    # 13. Show Pods
     # =========================================================
 
     - name: Show application pods
@@ -205,7 +228,7 @@
 
 
     # =========================================================
-    # 13. Show Service
+    # 14. Show Service
     # =========================================================
 
     - name: Show application service
@@ -221,7 +244,7 @@
 
 
     # =========================================================
-    # 14. Get Minikube IP
+    # 15. Get Minikube IP
     # =========================================================
 
     - name: Get Minikube IP
@@ -237,7 +260,7 @@
 
 
     # =========================================================
-    # 15. Get NodePort
+    # 16. Get NodePort
     # =========================================================
 
     - name: Get application NodePort
