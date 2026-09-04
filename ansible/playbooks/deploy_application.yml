@@ -189,7 +189,49 @@
 
 
     # =========================================================
-    # 11. Restart Deployment with New Image
+    # 11. Expose Prometheus through EC2 Nginx
+    # =========================================================
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Get Minikube IP for Prometheus proxy
+      become: false
+      command: minikube ip
+      register: prometheus_minikube_ip
+      changed_when: false
+
+    - name: Configure Nginx Prometheus proxy
+      template:
+        src: ../templates/prometheus-nginx.conf.j2
+        dest: /etc/nginx/sites-available/prometheus
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable Nginx Prometheus proxy
+      file:
+        src: /etc/nginx/sites-available/prometheus
+        dest: /etc/nginx/sites-enabled/prometheus
+        state: link
+        force: true
+
+    - name: Validate Nginx configuration
+      command: nginx -t
+      changed_when: false
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+        enabled: true
+
+
+    # =========================================================
+    # 12. Restart Deployment with New Image
     # =========================================================
 
     - name: Update deployment image
@@ -200,7 +242,7 @@
 
 
     # =========================================================
-    # 12. Wait for Rollout
+    # 13. Wait for Rollout
     # =========================================================
 
     - name: Wait for application rollout
@@ -212,7 +254,7 @@
 
 
     # =========================================================
-    # 13. Show Pods
+    # 14. Show Pods
     # =========================================================
 
     - name: Show application pods
@@ -228,7 +270,7 @@
 
 
     # =========================================================
-    # 14. Show Service
+    # 15. Show Service
     # =========================================================
 
     - name: Show application service
@@ -244,7 +286,7 @@
 
 
     # =========================================================
-    # 15. Get Minikube IP
+    # 16. Get Minikube IP
     # =========================================================
 
     - name: Get Minikube IP
@@ -260,7 +302,7 @@
 
 
     # =========================================================
-    # 16. Get NodePort
+    # 17. Get NodePort
     # =========================================================
 
     - name: Get application NodePort

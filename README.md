@@ -33,11 +33,15 @@ kubectl get service prometheus
 curl http://$(minikube ip):30090/-/ready
 ```
 
-Open the Prometheus web interface at:
+After Jenkins applies the Terraform security-group and Nginx changes, open the
+Prometheus web interface at:
 
 ```text
-http://<MINIKUBE_IP>:30090
+http://<EC2_PUBLIC_IP>:9090
 ```
+
+The EC2 Nginx proxy forwards port `9090` to the Minikube Prometheus service on
+port `30090`. No SSH tunnel is required.
 
 Prometheus discovers pods that have these annotations and expose a metrics
 endpoint:
