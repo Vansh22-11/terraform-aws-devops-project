@@ -11,8 +11,85 @@ data:
         type: prometheus
         access: proxy
         url: http://prometheus:9090
+        uid: prometheus
         isDefault: true
         editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: default
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: Kubernetes
+        orgId: 1
+        folder: Kubernetes
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /etc/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-kubernetes-dashboard
+  namespace: default
+data:
+  kubernetes-pods.json: |
+    {
+      "annotations": {"list": []},
+      "editable": false,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "cores"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "id": 1,
+          "title": "Pod CPU Usage",
+          "type": "timeseries",
+          "targets": [{"expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\",pod!=\"\"}[5m]))", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "id": 2,
+          "title": "Pod Memory Usage",
+          "type": "timeseries",
+          "targets": [{"expr": "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\",pod!=\"\"})", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "id": 3,
+          "title": "Pod Restarts",
+          "type": "timeseries",
+          "targets": [{"expr": "sum by (namespace, pod) (kube_pod_container_status_restarts_total)", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "id": 4,
+          "title": "Ready Pods",
+          "type": "timeseries",
+          "targets": [{"expr": "sum by (namespace) (kube_pod_status_ready{condition=\"true\"})", "legendFormat": "{{namespace}}", "refId": "A"}]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["kubernetes", "pods"],
+      "templating": {"list": []},
+      "time": {"from": "now-1h", "to": "now"},
+      "title": "Kubernetes Pods",
+      "uid": "kubernetes-pods",
+      "version": 1
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -48,12 +125,22 @@ spec:
           volumeMounts:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboards
+              mountPath: /etc/grafana/dashboards
             - name: storage
               mountPath: /var/lib/grafana
       volumes:
         - name: datasources
           configMap:
             name: grafana-datasources
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboards
+          configMap:
+            name: grafana-kubernetes-dashboard
         - name: storage
           emptyDir: {}
 ---

@@ -181,6 +181,12 @@
       become: false
       command: kubectl apply -f /tmp/prometheus.yml
 
+    - name: Wait for kube-state-metrics rollout
+      become: false
+      command: >
+        kubectl rollout status deployment/kube-state-metrics
+        --timeout=180s
+
     - name: Restart Prometheus after configuration update
       become: false
       command: kubectl rollout restart deployment/prometheus
@@ -202,6 +208,10 @@
     - name: Apply Grafana manifest
       become: false
       command: kubectl apply -f /tmp/grafana.yml
+
+    - name: Restart Grafana after dashboard update
+      become: false
+      command: kubectl rollout restart deployment/grafana
 
     - name: Wait for Grafana rollout
       become: false
