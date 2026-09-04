@@ -55,3 +55,9 @@ prometheus.io/port: "8080"
 Prometheus cannot collect application metrics from a pod that does not expose
 a Prometheus-compatible metrics endpoint. The current Nginx application serves
 HTML only, so it is not automatically a metrics target.
+
+Grafana is deployed with Prometheus preconfigured as its default data source.
+Open Grafana at `http://<EC2_PUBLIC_IP>:3000` and sign in with `admin` / `admin`
+on the first login. Change the password immediately. Container and pod resource
+metrics are collected from kubelet cAdvisor; application-specific metrics still
+require an application `/metrics` endpoint or an exporter.

@@ -181,10 +181,32 @@
       become: false
       command: kubectl apply -f /tmp/prometheus.yml
 
+    - name: Restart Prometheus after configuration update
+      become: false
+      command: kubectl rollout restart deployment/prometheus
+
     - name: Wait for Prometheus rollout
       become: false
       command: >
         kubectl rollout status deployment/prometheus
+        --timeout=180s
+
+    - name: Copy Grafana manifest
+      become: false
+      copy:
+        src: ../Kubernetes/grafana.yml
+        dest: /tmp/grafana.yml
+        owner: ubuntu
+        mode: '0644'
+
+    - name: Apply Grafana manifest
+      become: false
+      command: kubectl apply -f /tmp/grafana.yml
+
+    - name: Wait for Grafana rollout
+      become: false
+      command: >
+        kubectl rollout status deployment/grafana
         --timeout=180s
 
 
