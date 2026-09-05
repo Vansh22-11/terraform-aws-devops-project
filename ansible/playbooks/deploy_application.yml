@@ -244,6 +244,11 @@
         group: root
         mode: '0644'
 
+    - name: Remove default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
     - name: Enable Nginx Prometheus proxy
       file:
         src: /etc/nginx/sites-available/prometheus
