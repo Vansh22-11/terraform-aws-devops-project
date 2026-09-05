@@ -147,6 +147,12 @@
       become: false
       command: kubectl apply -f /tmp/terraform-devops-deployment.yml
 
+    - name: Set application image before continuing
+      become: false
+      command: >
+        kubectl set image deployment/terraform-devops-app
+        terraform-devops-app={{ image_name }}
+
 
     # =========================================================
     # 9. Apply Kubernetes Service
@@ -236,6 +242,12 @@
       register: prometheus_minikube_ip
       changed_when: false
 
+    - name: Verify Minikube IP was detected
+      assert:
+        that:
+          - prometheus_minikube_ip.stdout | trim | length > 0
+        fail_msg: "Minikube IP could not be detected; refusing to create an invalid Nginx proxy."
+
     - name: Configure Nginx Prometheus proxy
       template:
         src: ../templates/prometheus-nginx.conf.j2
@@ -268,18 +280,7 @@
 
 
     # =========================================================
-    # 12. Restart Deployment with New Image
-    # =========================================================
-
-    - name: Update deployment image
-      become: false
-      command: >
-        kubectl set image deployment/terraform-devops-app
-        terraform-devops-app={{ image_name }}
-
-
-    # =========================================================
-    # 13. Wait for Rollout
+    # 12. Wait for Rollout
     # =========================================================
 
     - name: Wait for application rollout
@@ -291,7 +292,7 @@
 
 
     # =========================================================
-    # 14. Show Pods
+    # 13. Show Pods
     # =========================================================
 
     - name: Show application pods
@@ -307,7 +308,7 @@
 
 
     # =========================================================
-    # 15. Show Service
+    # 14. Show Service
     # =========================================================
 
     - name: Show application service
@@ -323,7 +324,7 @@
 
 
     # =========================================================
-    # 16. Get Minikube IP
+    # 15. Get Minikube IP
     # =========================================================
 
     - name: Get Minikube IP
@@ -339,7 +340,7 @@
 
 
     # =========================================================
-    # 17. Get NodePort
+    # 16. Get NodePort
     # =========================================================
 
     - name: Get application NodePort
