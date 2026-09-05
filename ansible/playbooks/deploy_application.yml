@@ -261,6 +261,11 @@
         path: /etc/nginx/sites-enabled/default
         state: absent
 
+    - name: Remove legacy Terraform Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/terraform-devops
+        state: absent
+
     - name: Enable Nginx Prometheus proxy
       file:
         src: /etc/nginx/sites-available/prometheus
