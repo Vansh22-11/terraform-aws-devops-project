@@ -9,6 +9,7 @@ User=ubuntu
 Environment=HOME=/home/ubuntu
 Environment=KUBECONFIG=/home/ubuntu/.kube/config
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do kubectl get endpoints grafana -o jsonpath="{.subsets[*].addresses[*].ip}" 2>/dev/null | grep -q . && exit 0; sleep 5; done; exit 1'
 ExecStart=/usr/bin/env kubectl port-forward --address 0.0.0.0 service/grafana 3000:3000
 Restart=always
 RestartSec=5

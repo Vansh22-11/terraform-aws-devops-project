@@ -438,6 +438,39 @@
       until: grafana_port_forward_status.stdout | trim == 'active'
       changed_when: false
 
+    - name: Verify Prometheus public listener
+      uri:
+        url: http://127.0.0.1:9090/-/ready
+        status_code: 200
+      register: prometheus_ready
+      retries: 12
+      delay: 5
+      until: prometheus_ready.status == 200
+      changed_when: false
+
+    - name: Verify Grafana public listener
+      uri:
+        url: http://127.0.0.1:3000/api/health
+        status_code: 200
+      register: grafana_health
+      retries: 12
+      delay: 5
+      until: grafana_health.status == 200
+      changed_when: false
+
+    - name: Verify Grafana Prometheus datasource
+      uri:
+        url: http://127.0.0.1:3000/api/datasources/uid/prometheus
+        user: admin
+        password: admin
+        force_basic_auth: true
+        status_code: 200
+      register: grafana_prometheus_datasource
+      retries: 12
+      delay: 5
+      until: grafana_prometheus_datasource.status == 200
+      changed_when: false
+
 
     # =========================================================
     # 12. Wait for Rollout
