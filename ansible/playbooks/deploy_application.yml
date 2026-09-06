@@ -203,6 +203,42 @@
         kubectl rollout status deployment/prometheus
         --timeout=180s
 
+    - name: Check Prometheus target state
+      become: false
+      command: >
+        kubectl exec deployment/prometheus --
+        wget -qO- http://127.0.0.1:9090/api/v1/targets
+      register: prometheus_targets
+      changed_when: false
+
+    - name: Display Prometheus target state
+      debug:
+        msg: "{{ prometheus_targets.stdout }}"
+
+    - name: Check Prometheus container metrics
+      become: false
+      command: >
+        kubectl exec deployment/prometheus --
+        wget -qO- "http://127.0.0.1:9090/api/v1/query?query=container_memory_working_set_bytes"
+      register: prometheus_container_metrics
+      changed_when: false
+
+    - name: Display Prometheus container metrics result
+      debug:
+        msg: "{{ prometheus_container_metrics.stdout }}"
+
+    - name: Check Prometheus container CPU metrics
+      become: false
+      command: >
+        kubectl exec deployment/prometheus --
+        wget -qO- "http://127.0.0.1:9090/api/v1/query?query=container_cpu_usage_seconds_total"
+      register: prometheus_cpu_metrics
+      changed_when: false
+
+    - name: Display Prometheus container CPU metrics result
+      debug:
+        msg: "{{ prometheus_cpu_metrics.stdout }}"
+
     - name: Copy Grafana manifest
       become: false
       copy:
@@ -224,7 +260,6 @@
       command: >
         kubectl rollout status deployment/grafana
         --timeout=180s
-
 
     # =========================================================
     # 11. Expose Prometheus through EC2 Nginx
