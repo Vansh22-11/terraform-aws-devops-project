@@ -175,6 +175,23 @@
     # 10. Deploy Prometheus monitoring
     # =========================================================
 
+    - name: Copy Prometheus rules file
+      become: false
+      copy:
+        src: ../Kubernetes/prometheus-rules.yml
+        dest: /tmp/prometheus-rules.yml
+        owner: ubuntu
+        mode: '0644'
+
+    - name: Apply Prometheus rules ConfigMap
+      become: false
+      shell: >
+        kubectl create configmap prometheus-rules
+        --from-file=prometheus-rules.yml=/tmp/prometheus-rules.yml
+        --dry-run=client -o yaml | kubectl apply -f -
+      args:
+        executable: /bin/bash
+
     - name: Copy Prometheus manifest
       become: false
       copy:
@@ -246,6 +263,32 @@
         dest: /tmp/grafana.yml
         owner: ubuntu
         mode: '0644'
+
+    - name: Copy Grafana CPU dashboard
+      become: false
+      copy:
+        src: ../Kubernetes/cpu-dashboard.json
+        dest: /tmp/cpu-dashboard.json
+        owner: ubuntu
+        mode: '0644'
+
+    - name: Copy Grafana memory dashboard
+      become: false
+      copy:
+        src: ../Kubernetes/memory-dashboard.json
+        dest: /tmp/memory-dashboard.json
+        owner: ubuntu
+        mode: '0644'
+
+    - name: Apply Grafana dashboard ConfigMap
+      become: false
+      shell: >
+        kubectl create configmap grafana-dashboards
+        --from-file=cpu-dashboard.json=/tmp/cpu-dashboard.json
+        --from-file=memory-dashboard.json=/tmp/memory-dashboard.json
+        --dry-run=client -o yaml | kubectl apply -f -
+      args:
+        executable: /bin/bash
 
     - name: Apply Grafana manifest
       become: false

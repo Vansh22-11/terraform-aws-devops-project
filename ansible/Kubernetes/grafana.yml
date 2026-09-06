@@ -140,7 +140,7 @@ spec:
             name: grafana-dashboard-provider
         - name: dashboards
           configMap:
-            name: grafana-kubernetes-dashboard
+            name: grafana-dashboards
         - name: storage
           emptyDir: {}
 ---

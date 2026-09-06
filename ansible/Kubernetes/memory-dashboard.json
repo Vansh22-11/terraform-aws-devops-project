@@ -1,0 +1,29 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "title": "Application Pod Memory Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "pod:container_memory_working_set_bytes:sum{namespace=\"default\",pod=~\"terraform-devops-app.*\"}",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["kubernetes", "application", "memory"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "Application Memory",
+  "uid": "application-memory",
+  "version": 1
+}

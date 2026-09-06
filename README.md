@@ -61,3 +61,14 @@ Open Grafana at `http://<EC2_PUBLIC_IP>:3000` and sign in with `admin` / `admin`
 on the first login. Change the password immediately. Container and pod resource
 metrics are collected from kubelet cAdvisor; application-specific metrics still
 require an application `/metrics` endpoint or an exporter.
+
+Monitoring automation files:
+
+- `ansible/Kubernetes/prometheus-rules.yml` contains recording rules and alerts.
+- `ansible/Kubernetes/cpu-dashboard.json` is the application CPU dashboard.
+- `ansible/Kubernetes/memory-dashboard.json` is the application memory dashboard.
+
+Ansible creates the Prometheus rules and Grafana dashboard ConfigMaps on every
+deployment, restarts both workloads, and Grafana loads the Prometheus datasource
+and dashboards automatically. In Grafana, open the `Kubernetes` folder to view
+`Application CPU` and `Application Memory`.
