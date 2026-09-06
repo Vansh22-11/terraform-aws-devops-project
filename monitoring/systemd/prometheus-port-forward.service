@@ -1,0 +1,17 @@
+[Unit]
+Description=TaskSphere Prometheus Kubernetes port-forward
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Environment=HOME=/home/ubuntu
+Environment=KUBECONFIG=/home/ubuntu/.kube/config
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env kubectl port-forward --address 0.0.0.0 service/prometheus 9090:9090
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

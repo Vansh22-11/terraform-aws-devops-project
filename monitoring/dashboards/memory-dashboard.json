@@ -8,22 +8,16 @@
       "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
       "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
       "id": 1,
-      "title": "Application Pod Memory Usage",
+      "title": "TaskSphere Application Memory Usage",
       "type": "timeseries",
-      "targets": [
-        {
-          "expr": "tasksphere:application_memory_working_set_bytes",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ]
+      "targets": [{"expr": "tasksphere:application_memory_working_set_bytes", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["kubernetes", "application", "memory"],
+  "tags": ["tasksphere", "kubernetes", "memory"],
   "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
-  "title": "Application Memory",
-  "uid": "application-memory",
+  "title": "TaskSphere Application Memory",
+  "uid": "tasksphere-application-memory",
   "version": 1
 }

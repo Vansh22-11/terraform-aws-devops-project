@@ -23,7 +23,7 @@ VS Code → GitHub → Jenkins Dynamic EC2 Agent → Terraform → AWS → S3
 ## Monitoring
 
 The deployment playbook installs Prometheus in Minikube from
-`ansible/Kubernetes/prometheus.yml`.
+`monitoring/prometheus.yaml`.
 
 Check Prometheus:
 
@@ -33,15 +33,16 @@ kubectl get service prometheus
 curl http://$(minikube ip):30090/-/ready
 ```
 
-After Jenkins applies the Terraform security-group and Nginx changes, open the
+After Jenkins applies the Terraform security-group and systemd changes, open the
 Prometheus web interface at:
 
 ```text
 http://<EC2_PUBLIC_IP>:9090
 ```
 
-The EC2 Nginx proxy forwards port `9090` to the Minikube Prometheus service on
-port `30090`. No SSH tunnel is required.
+The `prometheus-port-forward.service` systemd unit forwards EC2 port `9090` to
+the Minikube Prometheus service. The `grafana-port-forward.service` unit does
+the same for EC2 port `3000`. No SSH tunnel is required.
 
 Prometheus discovers pods that have these annotations and expose a metrics
 endpoint:
@@ -64,11 +65,11 @@ require an application `/metrics` endpoint or an exporter.
 
 Monitoring automation files:
 
-- `ansible/Kubernetes/prometheus-rules.yml` contains recording rules and alerts.
-- `ansible/Kubernetes/cpu-dashboard.json` is the application CPU dashboard.
-- `ansible/Kubernetes/memory-dashboard.json` is the application memory dashboard.
+- `monitoring/prometheus-rules.yaml` contains recording rules and alerts.
+- `monitoring/dashboards/cpu-dashboard.json` is the application CPU dashboard.
+- `monitoring/dashboards/memory-dashboard.json` is the application memory dashboard.
 
 Ansible creates the Prometheus rules and Grafana dashboard ConfigMaps on every
 deployment, restarts both workloads, and Grafana loads the Prometheus datasource
-and dashboards automatically. In Grafana, open the `Kubernetes` folder to view
-`Application CPU` and `Application Memory`.
+and dashboards automatically. In Grafana, open the `TaskSphere DevOps` folder
+to view `TaskSphere Application CPU` and `TaskSphere Application Memory`.

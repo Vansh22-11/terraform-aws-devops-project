@@ -8,22 +8,16 @@
       "fieldConfig": {"defaults": {"unit": "cores"}, "overrides": []},
       "gridPos": {"h": 12, "w": 24, "x": 0, "y": 0},
       "id": 1,
-      "title": "Application Pod CPU Usage",
+      "title": "TaskSphere Application CPU Usage",
       "type": "timeseries",
-      "targets": [
-        {
-          "expr": "tasksphere:application_cpu_usage_cores",
-          "legendFormat": "{{pod}}",
-          "refId": "A"
-        }
-      ]
+      "targets": [{"expr": "tasksphere:application_cpu_usage_cores", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
     }
   ],
   "schemaVersion": 39,
-  "tags": ["kubernetes", "application", "cpu"],
+  "tags": ["tasksphere", "kubernetes", "cpu"],
   "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
-  "title": "Application CPU",
-  "uid": "application-cpu",
+  "title": "TaskSphere Application CPU",
+  "uid": "tasksphere-application-cpu",
   "version": 1
 }

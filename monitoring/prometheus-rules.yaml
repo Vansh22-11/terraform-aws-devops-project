@@ -12,7 +12,6 @@ groups:
               container!="POD"
             }[5m])
           )
-
       - record: tasksphere:application_memory_working_set_bytes
         expr: |
           sum by (namespace, pod) (
@@ -23,7 +22,6 @@ groups:
               container!="POD"
             }
           )
-
       - record: tasksphere:application_restarts_total
         expr: |
           sum by (namespace, pod) (
@@ -32,7 +30,6 @@ groups:
               pod=~"terraform-devops-app.*"
             }
           )
-
       - record: tasksphere:application_ready
         expr: |
           max by (namespace, pod) (
@@ -42,7 +39,6 @@ groups:
               condition="true"
             }
           )
-
       - record: tasksphere:application_network_receive_bytes_per_second
         expr: |
           sum by (namespace, pod) (
@@ -51,7 +47,6 @@ groups:
               pod=~"terraform-devops-app.*"
             }[5m])
           )
-
       - record: tasksphere:application_network_transmit_bytes_per_second
         expr: |
           sum by (namespace, pod) (
@@ -73,7 +68,6 @@ groups:
         annotations:
           summary: "TaskSphere application pod is not ready"
           description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} is not ready."
-
       - alert: TaskSphereApplicationHighCpu
         expr: tasksphere:application_cpu_usage_cores > 0.8
         for: 5m
@@ -83,7 +77,6 @@ groups:
         annotations:
           summary: "TaskSphere application CPU is high"
           description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 0.8 CPU cores."
-
       - alert: TaskSphereApplicationHighMemory
         expr: tasksphere:application_memory_working_set_bytes > 536870912
         for: 5m
@@ -93,7 +86,6 @@ groups:
         annotations:
           summary: "TaskSphere application memory is high"
           description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 512 MiB."
-
       - alert: TaskSphereApplicationRestarted
         expr: increase(tasksphere:application_restarts_total[15m]) > 0
         for: 2m
@@ -103,89 +95,3 @@ groups:
         annotations:
           summary: "TaskSphere application pod restarted"
           description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} restarted recently."
-
-  - name: kubernetes-pod-recording-rules
-    interval: 15s
-    rules:
-      - record: pod:container_cpu_usage_cores:sum
-        expr: |
-          sum by (namespace, pod) (
-            rate(container_cpu_usage_seconds_total{
-              container!="",
-              container!="POD",
-              pod!=""
-            }[5m])
-          )
-
-      - record: pod:container_memory_working_set_bytes:sum
-        expr: |
-          sum by (namespace, pod) (
-            container_memory_working_set_bytes{
-              container!="",
-              container!="POD",
-              pod!=""
-            }
-          )
-
-      - record: pod:container_network_receive_bytes_per_second:sum
-        expr: |
-          sum by (namespace, pod) (
-            rate(container_network_receive_bytes_total{pod!=""}[5m])
-          )
-
-      - record: pod:container_network_transmit_bytes_per_second:sum
-        expr: |
-          sum by (namespace, pod) (
-            rate(container_network_transmit_bytes_total{pod!=""}[5m])
-          )
-
-      - record: pod:restarts:sum
-        expr: |
-          sum by (namespace, pod) (
-            kube_pod_container_status_restarts_total
-          )
-
-      - record: namespace:pods_ready:sum
-        expr: |
-          sum by (namespace) (
-            kube_pod_status_ready{condition="true"}
-          )
-
-  - name: kubernetes-pod-alerts
-    interval: 30s
-    rules:
-      - alert: PodDown
-        expr: kube_pod_status_phase{phase=~"Failed|Unknown"} == 1
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Kubernetes pod is not healthy"
-          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is in {{ $labels.phase }} state."
-
-      - alert: PodHighCpu
-        expr: pod:container_cpu_usage_cores:sum > 0.8
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Kubernetes pod CPU usage is high"
-          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 0.8 CPU cores."
-
-      - alert: PodHighMemory
-        expr: pod:container_memory_working_set_bytes:sum > 536870912
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Kubernetes pod memory usage is high"
-          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 512 MiB."
-
-      - alert: PodRestarting
-        expr: increase(kube_pod_container_status_restarts_total[15m]) > 0
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Kubernetes pod restarted"
-          description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} restarted recently."

@@ -834,6 +834,43 @@ pipeline {
 
         }
 
+        stage('Display Current Service URLs') {
+
+            when {
+                expression {
+                    params.DEPLOYMENT_MODE == 'Create / Update Infrastructure'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    def currentEc2PublicIp = sh(
+                        script: 'terraform output -raw ec2_public_ip',
+                        returnStdout: true
+                    ).trim()
+
+                    if (!currentEc2PublicIp || currentEc2PublicIp == 'None') {
+                        error('Terraform did not return a current EC2 public IP.')
+                    }
+
+                    echo """
+                    ==============================================================
+                    CURRENT DEPLOYMENT URLS
+                    ==============================================================
+                    EC2 PUBLIC IP : ${currentEc2PublicIp}
+                    APPLICATION    : http://${currentEc2PublicIp}
+                    PROMETHEUS     : http://${currentEc2PublicIp}:9090
+                    GRAFANA        : http://${currentEc2PublicIp}:3000
+                    ==============================================================
+                    These URLs use the current EC2 public IP from Terraform.
+                    ==============================================================
+                    """
+                }
+            }
+        }
+
     }
 
     post {
