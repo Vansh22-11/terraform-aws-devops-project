@@ -424,10 +424,18 @@
 
     - name: Check Prometheus port-forward service
       command: systemctl is-active prometheus-port-forward.service
+      register: prometheus_port_forward_status
+      retries: 12
+      delay: 5
+      until: prometheus_port_forward_status.stdout | trim == 'active'
       changed_when: false
 
     - name: Check Grafana port-forward service
       command: systemctl is-active grafana-port-forward.service
+      register: grafana_port_forward_status
+      retries: 12
+      delay: 5
+      until: grafana_port_forward_status.stdout | trim == 'active'
       changed_when: false
 
 

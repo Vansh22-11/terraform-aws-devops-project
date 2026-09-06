@@ -847,7 +847,13 @@ pipeline {
                 script {
 
                     def currentEc2PublicIp = sh(
-                        script: 'terraform output -raw ec2_public_ip',
+                        script: '''
+                            if [ -s ec2_public_ip.txt ]; then
+                                cat ec2_public_ip.txt
+                            else
+                                terraform output -raw ec2_public_ip
+                            fi
+                        ''',
                         returnStdout: true
                     ).trim()
 
