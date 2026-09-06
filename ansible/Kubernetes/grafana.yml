@@ -52,7 +52,7 @@ data:
           "id": 1,
           "title": "Pod CPU Usage",
           "type": "timeseries",
-          "targets": [{"expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\",pod!=\"\"}[5m]))", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+          "targets": [{"expr": "pod:container_cpu_usage_cores:sum", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},
@@ -61,7 +61,7 @@ data:
           "id": 2,
           "title": "Pod Memory Usage",
           "type": "timeseries",
-          "targets": [{"expr": "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\",pod!=\"\"})", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+          "targets": [{"expr": "pod:container_memory_working_set_bytes:sum", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "prometheus"},

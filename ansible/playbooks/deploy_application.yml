@@ -256,6 +256,30 @@
       debug:
         msg: "{{ prometheus_cpu_metrics.stdout }}"
 
+    - name: Check TaskSphere CPU recording rule
+      become: false
+      command: >
+        kubectl exec deployment/prometheus --
+        wget -qO- "http://127.0.0.1:9090/api/v1/query?query=tasksphere:application_cpu_usage_cores"
+      register: tasksphere_cpu_rule
+      changed_when: false
+
+    - name: Display TaskSphere CPU recording rule result
+      debug:
+        msg: "{{ tasksphere_cpu_rule.stdout }}"
+
+    - name: Check TaskSphere memory recording rule
+      become: false
+      command: >
+        kubectl exec deployment/prometheus --
+        wget -qO- "http://127.0.0.1:9090/api/v1/query?query=tasksphere:application_memory_working_set_bytes"
+      register: tasksphere_memory_rule
+      changed_when: false
+
+    - name: Display TaskSphere memory recording rule result
+      debug:
+        msg: "{{ tasksphere_memory_rule.stdout }}"
+
     - name: Copy Grafana manifest
       become: false
       copy:

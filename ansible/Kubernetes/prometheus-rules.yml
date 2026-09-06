@@ -1,4 +1,109 @@
 groups:
+  - name: tasksphere-devops-recording-rules
+    interval: 15s
+    rules:
+      - record: tasksphere:application_cpu_usage_cores
+        expr: |
+          sum by (namespace, pod) (
+            rate(container_cpu_usage_seconds_total{
+              namespace="default",
+              pod=~"terraform-devops-app.*",
+              container!="",
+              container!="POD"
+            }[5m])
+          )
+
+      - record: tasksphere:application_memory_working_set_bytes
+        expr: |
+          sum by (namespace, pod) (
+            container_memory_working_set_bytes{
+              namespace="default",
+              pod=~"terraform-devops-app.*",
+              container!="",
+              container!="POD"
+            }
+          )
+
+      - record: tasksphere:application_restarts_total
+        expr: |
+          sum by (namespace, pod) (
+            kube_pod_container_status_restarts_total{
+              namespace="default",
+              pod=~"terraform-devops-app.*"
+            }
+          )
+
+      - record: tasksphere:application_ready
+        expr: |
+          max by (namespace, pod) (
+            kube_pod_status_ready{
+              namespace="default",
+              pod=~"terraform-devops-app.*",
+              condition="true"
+            }
+          )
+
+      - record: tasksphere:application_network_receive_bytes_per_second
+        expr: |
+          sum by (namespace, pod) (
+            rate(container_network_receive_bytes_total{
+              namespace="default",
+              pod=~"terraform-devops-app.*"
+            }[5m])
+          )
+
+      - record: tasksphere:application_network_transmit_bytes_per_second
+        expr: |
+          sum by (namespace, pod) (
+            rate(container_network_transmit_bytes_total{
+              namespace="default",
+              pod=~"terraform-devops-app.*"
+            }[5m])
+          )
+
+  - name: tasksphere-devops-alerts
+    interval: 30s
+    rules:
+      - alert: TaskSphereApplicationNotReady
+        expr: tasksphere:application_ready == 0
+        for: 2m
+        labels:
+          severity: critical
+          application: tasksphere-devops
+        annotations:
+          summary: "TaskSphere application pod is not ready"
+          description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} is not ready."
+
+      - alert: TaskSphereApplicationHighCpu
+        expr: tasksphere:application_cpu_usage_cores > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          application: tasksphere-devops
+        annotations:
+          summary: "TaskSphere application CPU is high"
+          description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 0.8 CPU cores."
+
+      - alert: TaskSphereApplicationHighMemory
+        expr: tasksphere:application_memory_working_set_bytes > 536870912
+        for: 5m
+        labels:
+          severity: warning
+          application: tasksphere-devops
+        annotations:
+          summary: "TaskSphere application memory is high"
+          description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} is using more than 512 MiB."
+
+      - alert: TaskSphereApplicationRestarted
+        expr: increase(tasksphere:application_restarts_total[15m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          application: tasksphere-devops
+        annotations:
+          summary: "TaskSphere application pod restarted"
+          description: "The TaskSphere application pod {{ $labels.namespace }}/{{ $labels.pod }} restarted recently."
+
   - name: kubernetes-pod-recording-rules
     interval: 15s
     rules:

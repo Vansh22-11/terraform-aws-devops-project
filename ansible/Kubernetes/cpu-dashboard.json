@@ -12,7 +12,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "pod:container_cpu_usage_cores:sum{namespace=\"default\",pod=~\"terraform-devops-app.*\"}",
+          "expr": "tasksphere:application_cpu_usage_cores",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }

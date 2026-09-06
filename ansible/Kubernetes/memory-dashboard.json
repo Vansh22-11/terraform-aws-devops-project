@@ -12,7 +12,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "pod:container_memory_working_set_bytes:sum{namespace=\"default\",pod=~\"terraform-devops-app.*\"}",
+          "expr": "tasksphere:application_memory_working_set_bytes",
           "legendFormat": "{{pod}}",
           "refId": "A"
         }
