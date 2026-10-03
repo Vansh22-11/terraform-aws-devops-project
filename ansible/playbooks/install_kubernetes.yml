@@ -9,29 +9,43 @@
     # REQUIRED PACKAGES
     # --------------------------------------------------
 
-    - name: Wait for apt lock to be released
+    - name: Stop automatic Ubuntu package jobs
       shell: |
-        while pgrep -x apt-get >/dev/null 2>&1 || pgrep -x dpkg >/dev/null 2>&1 || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        systemctl disable --now unattended-upgrades 2>/dev/null || true
+        systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+        systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+        systemctl daemon-reload 2>/dev/null || true
+      changed_when: false
+
+    - name: Wait for apt and dpkg locks to clear
+      shell: |
+        while pgrep -a apt-get >/dev/null 2>&1 || pgrep -a dpkg >/dev/null 2>&1 || pgrep -a unattended >/dev/null 2>&1 || \
+              fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+              fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
           sleep 5
         done
       changed_when: false
       register: k8s_apt_lock_wait
-      retries: 20
+      retries: 30
       delay: 5
       until: k8s_apt_lock_wait is succeeded
 
-    - name: Install required Kubernetes packages
-      apt:
-        name:
-          - curl
-          - wget
-          - conntrack
-        state: present
-        update_cache: yes
-        lock_timeout: 600
+    - name: Refresh apt cache for Kubernetes dependencies
+      shell: |
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -o Dpkg::Use-Pty=0 -o DPkg::Lock::Timeout=600
+      register: k8s_apt_update
       retries: 5
       delay: 10
+      until: k8s_apt_update is succeeded
+
+    - name: Install required Kubernetes packages
+      shell: |
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get install -y --no-install-recommends curl wget conntrack
       register: k8s_apt_install
+      retries: 5
+      delay: 10
       until: k8s_apt_install is succeeded
 
 

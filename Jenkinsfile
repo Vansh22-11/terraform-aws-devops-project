@@ -608,14 +608,14 @@ echo "========== WAITING FOR CLOUD-INIT =========="
                         ubuntu@$EC2_PUBLIC_IP \
                         "sudo cloud-init status --wait || true"
 
-                    echo "========== TESTING ANSIBLE CONNECTION =========="
+                    echo "========== DISABLING AUTOMATIC APT JOBS =========="
 
-                cd ansible
+                    ssh \
+                        -o StrictHostKeyChecking=no \
+                        -o ConnectTimeout=5 \
+                        ubuntu@$EC2_PUBLIC_IP \
+                        "sudo systemctl disable --now unattended-upgrades 2>/dev/null || true; sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true; sudo systemctl stop apt-daily.service apt-daily-upgrade.service 2>/dev/null || true; sudo systemctl daemon-reload 2>/dev/null || true"
 
-                export ANSIBLE_CONFIG=$(pwd)/ansible.cfg
-
-                ansible \
-                    -i inventory/hosts \
                     terraform_servers \
                     -m ping
 
