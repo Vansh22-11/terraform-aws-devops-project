@@ -9,6 +9,17 @@
     # REQUIRED PACKAGES
     # --------------------------------------------------
 
+    - name: Wait for apt lock to be released
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+          sleep 5
+        done
+      changed_when: false
+      register: k8s_apt_lock_wait
+      retries: 20
+      delay: 5
+      until: k8s_apt_lock_wait is succeeded
+
     - name: Install required Kubernetes packages
       apt:
         name:
@@ -17,6 +28,10 @@
           - conntrack
         state: present
         update_cache: yes
+      retries: 5
+      delay: 10
+      register: k8s_apt_install
+      until: k8s_apt_install is succeeded
 
 
     # --------------------------------------------------

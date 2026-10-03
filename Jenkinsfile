@@ -600,7 +600,15 @@ pipeline {
                     fi
 
 
-                echo "========== TESTING ANSIBLE CONNECTION =========="
+echo "========== WAITING FOR CLOUD-INIT =========="
+
+                    ssh \
+                        -o StrictHostKeyChecking=no \
+                        -o ConnectTimeout=5 \
+                        ubuntu@$EC2_PUBLIC_IP \
+                        "sudo cloud-init status --wait || true"
+
+                    echo "========== TESTING ANSIBLE CONNECTION =========="
 
                 cd ansible
 

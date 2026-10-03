@@ -1,12 +1,32 @@
 ---
+- name: Wait for apt lock to be released
+  shell: |
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+      sleep 5
+    done
+  changed_when: false
+  register: apt_lock_wait
+  retries: 20
+  delay: 5
+  until: apt_lock_wait is succeeded
+
 - name: Update apt cache
   apt:
     update_cache: yes
+    cache_valid_time: 3600
+  retries: 5
+  delay: 10
+  register: apt_update
+  until: apt_update is succeeded
 
 - name: Install Java 21
   apt:
     name: openjdk-21-jdk
     state: present
+  retries: 5
+  delay: 10
+  register: java_install
+  until: java_install is succeeded
 
 - name: Verify Java Installation
   command: java -version
