@@ -10,7 +10,13 @@
       "id": 1,
       "title": "TaskSphere Application CPU Usage",
       "type": "timeseries",
-      "targets": [{"expr": "tasksphere:application_cpu_usage_cores", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+      "targets": [
+        {
+          "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\",image!=\"\"}[5m]))",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,

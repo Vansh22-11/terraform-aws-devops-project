@@ -10,7 +10,13 @@
       "id": 1,
       "title": "TaskSphere Application Memory Usage",
       "type": "timeseries",
-      "targets": [{"expr": "tasksphere:application_memory_working_set_bytes", "legendFormat": "{{namespace}}/{{pod}}", "refId": "A"}]
+      "targets": [
+        {
+          "expr": "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\",container!=\"POD\",image!=\"\"})",
+          "legendFormat": "{{namespace}}/{{pod}}",
+          "refId": "A"
+        }
+      ]
     }
   ],
   "schemaVersion": 39,
