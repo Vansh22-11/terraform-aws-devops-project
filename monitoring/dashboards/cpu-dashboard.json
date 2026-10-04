@@ -12,8 +12,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\",container!=\"POD\",image!=\"\"}[5m]))",
-          "legendFormat": "{{namespace}}/{{pod}}",
+          "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ]

@@ -4,22 +4,10 @@ groups:
     rules:
       - record: tasksphere:application_cpu_usage_cores
         expr: |
-          sum by (namespace, pod) (
-            rate(container_cpu_usage_seconds_total{
-              container!="",
-              container!="POD",
-              pod=~".*"
-            }[5m])
-          )
+          1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
       - record: tasksphere:application_memory_working_set_bytes
         expr: |
-          sum by (namespace, pod) (
-            container_memory_working_set_bytes{
-              container!="",
-              container!="POD",
-              pod=~".*"
-            }
-          )
+          node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
       - record: tasksphere:application_restarts_total
         expr: |
           sum by (namespace, pod) (

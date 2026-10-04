@@ -12,8 +12,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\",container!=\"POD\",image!=\"\"})",
-          "legendFormat": "{{namespace}}/{{pod}}",
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
+          "legendFormat": "{{instance}}",
           "refId": "A"
         }
       ]
