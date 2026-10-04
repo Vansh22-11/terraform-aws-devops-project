@@ -364,11 +364,30 @@
     # 11. Expose Prometheus through EC2 Nginx
     # =========================================================
 
+    - name: Wait for APT package manager to be ready
+      shell: |
+        while pgrep -a apt-get >/dev/null 2>&1 || pgrep -a dpkg >/dev/null 2>&1 || pgrep -a unattended >/dev/null 2>&1 || \
+              fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+              fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+          echo "Waiting for apt/dpkg lock to clear before installing Nginx..."
+          sleep 5
+        done
+      changed_when: false
+      register: nginx_apt_lock_wait
+      retries: 30
+      delay: 5
+      until: nginx_apt_lock_wait is succeeded
+
     - name: Install Nginx
       apt:
         name: nginx
         state: present
         update_cache: yes
+        cache_valid_time: 3600
+      register: nginx_install
+      retries: 5
+      delay: 10
+      until: nginx_install is succeeded
 
     - name: Get Minikube IP for Prometheus proxy
       become: false
