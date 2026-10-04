@@ -6,36 +6,32 @@ groups:
         expr: |
           sum by (namespace, pod) (
             rate(container_cpu_usage_seconds_total{
-              namespace="default",
-              pod=~"terraform-devops-app.*",
               container!="",
-              container!="POD"
+              container!="POD",
+              pod=~".*"
             }[5m])
           )
       - record: tasksphere:application_memory_working_set_bytes
         expr: |
           sum by (namespace, pod) (
             container_memory_working_set_bytes{
-              namespace="default",
-              pod=~"terraform-devops-app.*",
               container!="",
-              container!="POD"
+              container!="POD",
+              pod=~".*"
             }
           )
       - record: tasksphere:application_restarts_total
         expr: |
           sum by (namespace, pod) (
             kube_pod_container_status_restarts_total{
-              namespace="default",
-              pod=~"terraform-devops-app.*"
+              pod=~".*"
             }
           )
       - record: tasksphere:application_ready
         expr: |
           max by (namespace, pod) (
             kube_pod_status_ready{
-              namespace="default",
-              pod=~"terraform-devops-app.*",
+              pod=~".*",
               condition="true"
             }
           )
@@ -43,16 +39,18 @@ groups:
         expr: |
           sum by (namespace, pod) (
             rate(container_network_receive_bytes_total{
-              namespace="default",
-              pod=~"terraform-devops-app.*"
+              container!="",
+              container!="POD",
+              pod=~".*"
             }[5m])
           )
       - record: tasksphere:application_network_transmit_bytes_per_second
         expr: |
           sum by (namespace, pod) (
             rate(container_network_transmit_bytes_total{
-              namespace="default",
-              pod=~"terraform-devops-app.*"
+              container!="",
+              container!="POD",
+              pod=~".*"
             }[5m])
           )
 
